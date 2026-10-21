@@ -14,6 +14,12 @@ Regla: al **finalizar cada tarea** se añade una entrada arriba (la más recient
 
 ## Entradas
 
+### 2026-10-21 — v0.8.2: tragamonedas más baja y ancha, y sólo al tirar
+- **Qué cambió:** lienzo 280×150 → 320×108; la máquina está oculta (`.slotwrap` colapsada) hasta pulsar «Tirar» y se despliega debajo de los botones; sigue visible hasta cerrar el panel.
+- **Ficheros:** `index.html` (`SLOT_W/H/CELL`, `slotSymbol`, `slotDraw`, `panelGacha`, CSS `.slotwrap`), `scripts/smoke.js`, `README.md`, `CHANGELOG.md`
+- **Decisiones:** colocada bajo los botones para que no se desplacen al aparecer; se queda tras la tirada (interpretación mía: «sólo aparezca cuando pulsemos»); sin captura real, el aspecto lo juzga el usuario.
+- **Pendiente / siguiente paso:** que el usuario lo compruebe; sincronizar y commitear cuando lo ordene.
+
 ### 2026-10-21 — v0.8.1: tragamonedas más compacta y arriba
 - **Qué cambió:** lienzo 320×230 → 280×150 (apaisado), casillas de 48 px; el panel del Gacha se alinea arriba (`openPanel(..., arriba)`) y la lista de resultados tiene altura máxima.
 - **Ficheros:** `index.html` (`SLOT_W/SLOT_H/SLOT_CELL`, `slotSymbol`, `slotDraw`, `openPanel`, `panelGacha`), `scripts/smoke.js`, `README.md`, `CHANGELOG.md`

@@ -207,7 +207,8 @@ src += `
   for (let i = 0; i < 60 * 60 && slotBusy; i++) slotStep(1 / 60); Math.random = realRandom; eq(slotBusy ? 1 : 0, 0, 'termina el x10'); eq(lista.length, 10, 'diez resultados en la lista');
   lista.length = 0; montar(); SAVE.coins = 1000; rq([0, 0.5]); document.querySelector('#g10').onclick(); slotStep(0.1); slotSkip(); Math.random = realRandom; eq(slotBusy ? 1 : 0, 0, 'saltar termina'); eq(lista.length, 10, 'saltar enseña los diez resultados'); eq(slotQ.length, 0, 'cola vacia');
   panelGacha(); eq(document.querySelector('#ovPanel').style.alignItems === 'flex-start' ? 1 : 0, 1, 'el Gacha se alinea arriba'); panelStats(); eq(document.querySelector('#ovPanel').style.alignItems === '' ? 1 : 0, 1, 'otros paneles siguen centrados');
-  if (!(SLOT_W / SLOT_H >= 1.7)) throw new Error('FALLO la tragamonedas es demasiado alta: ' + SLOT_W + 'x' + SLOT_H); if (!(SLOT_H <= 160)) throw new Error('FALLO la tragamonedas es demasiado grande');
+  if (!(SLOT_W / SLOT_H >= 2.5)) throw new Error('FALLO la tragamonedas es demasiado alta: ' + SLOT_W + 'x' + SLOT_H); if (!(SLOT_H <= 120)) throw new Error('FALLO la tragamonedas es demasiado grande');
+  panelGacha(); eq(slotShown ? 1 : 0, 0, 'la maquina empieza oculta'); SAVE.coins = 1000; document.querySelector('#g1').onclick(); eq(slotShown ? 1 : 0, 1, 'la maquina se muestra al tirar'); slotSkip(); panelGacha(); eq(slotShown ? 1 : 0, 0, 'al reabrir el panel vuelve a estar oculta');
   panelGacha();
   console.log('GACHA OK');
 

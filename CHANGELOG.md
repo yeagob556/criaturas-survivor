@@ -2,6 +2,11 @@
 
 Versionado: `0.x.0` por cada mejora (la 0.1.0 es la primera versión); `0.x.y` para correcciones. La versión que muestra el juego (`VERSION` en `index.html`) debe coincidir con el primer encabezado de este fichero.
 
+## v0.8.2 — 2026-10-21 · Tragamonedas más baja, más ancha y sólo al tirar
+- **Más baja y más ancha:** el lienzo pasa de 280×150 a 320×108 (casi 3:1), con ventanas de rodillo apaisadas (80×40), casillas de 36 px y símbolos a escala 0,58.
+- **Sólo aparece al tirar:** el panel del Gacha se abre solo con las monedas y los botones; la máquina se despliega con una animación (`.slotwrap`, `max-height`) al pulsar «Tirar ×1» o «×10», debajo de los botones para que éstos no se muevan, y se queda hasta cerrar el panel. Antes ocupaba sitio desde el principio.
+- `scripts/smoke.js`: proporción ≥ 2,5 y alto ≤ 120, y que la máquina empieza oculta (`slotShown`) y se muestra al tirar.
+
 ## v0.8.1 — 2026-10-21 · Tragamonedas más compacta y arriba
 - La máquina del Gacha pasa de 320×230 a 280×150 (apaisada: más ancha que alta, `SLOT_W`/`SLOT_H`), con casillas de 48 px y símbolos a escala 0,74.
 - El panel del Gacha se pega al borde superior (`openPanel(..., arriba)`) en vez de centrarse en vertical, así la máquina ya no baja cuando crece la lista de resultados; la lista tiene altura máxima con desplazamiento. Se funden en una sola línea las monedas y la explicación de los rodillos.
