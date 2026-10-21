@@ -14,6 +14,13 @@ Regla: al **finalizar cada tarea** se añade una entrada arriba (la más recient
 
 ## Entradas
 
+### 2026-10-21 — Mejora 8: eventos, cofres, aparición progresiva y líquidos contrarios (v0.9.0)
+- **Qué cambió:** aparición de hostiles progresiva; 3 eventos aleatorios (marea, lluvia de agua con buffs/nerfeos, lluvia de fuego con meteoritos avisados); cofres pequeños y grandes; líquidos que castigan al tipo contrario (×1,5 y -20% de daño) y no afectan al del mapa.
+- **Ficheros:** `index.html` (tablas `EVENTS/RAIN_FX/METEOR/CHEST`, `spawnRate/spawnCap`, `startEvent/updateEvents/meteorHit`, `openChest`, `liqEffect`, `drawChest/drawMeteor*`), `scripts/smoke.js`, `scripts/capturas.py`, `README.md`, `CHANGELOG.md`, `CLAUDE.md`
+- **Decisiones:** «tipo contrario» = el tipo al que el tipo del mapa le gana según la tabla de ventajas (p. ej. en lava, la planta); neutros: efecto normal. La lluvia de agua actúa por tipo sobre las estadísticas de especialidad. Los cofres forman parte del mundo por trozos (deterministas, se guardan en `G.broken`).
+- **Lección:** un comentario `//` mal puesto comentó el código de `closeLevelUp` y dejó el juego pausado; lo cazó la captura (no las pruebas) y se añadieron pruebas de avance de la simulación y de reanudar al elegir; `eq`/`near` ya fallan con `NaN`.
+- **Pendiente / siguiente paso:** el usuario prueba el equilibrio (ritmo de aparición, frecuencia y dureza de los eventos, botín de cofres); sincronizar y commitear cuando lo ordene.
+
 ### 2026-10-21 — v0.8.4: la hierba aguanta más
 - **Qué cambió:** vida de la hierba 10 → 22,5 (la mitad de una piedra, por petición del usuario); ya no la rompe un solo disparo y la visión reducida dura más.
 - **Ficheros:** `index.html` (`OBS_HP`), `scripts/capturas.py`, `scripts/smoke.js`, `README.md`, `CHANGELOG.md`

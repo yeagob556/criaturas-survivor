@@ -28,14 +28,15 @@ src += `
     update(1 / 60); draw(); ok++;
   }
   console.log('frames', ok, 't', G.t.toFixed(0), 'lvl', G.lvl, 'kills', G.kills);
+  if (!(G.t > 600)) throw new Error('FALLO la simulacion de 12 min no avanza (juego atascado en pausa?): t=' + G.t.toFixed(1)); if (!(G.lvl > 10)) throw new Error('FALLO no se sube de nivel: ' + G.lvl);
   console.log('mapas vistos', Object.keys(SAVE.dex.m).length, '/', MAPS.length, '| criaturas descubiertas', Object.values(SAVE.dex.c).filter(d => d.seen).length, '/', DEX.length);
   // la simulacion anterior uso obstaculos reales al azar; las pruebas exactas se hacen en un mundo vacio
   const realChunk = getChunk; const seenKinds = new Set(); for (const c of G.chunks.values()) for (const o of c) seenKinds.add(o.k);
   console.log('trozos generados', G.chunks.size, '| clases vistas', [...seenKinds].join(','));
   getChunk = () => [];
   // --- pruebas de la lógica de buffs (valores exactos) ---
-  const eq = (a, b, msg) => { if (Math.abs(a - b) > 1e-9) throw new Error('FALLO ' + msg + ': ' + a + ' vs ' + b); };
-  const near = (a, b, msg) => { if (Math.abs(a - b) > 1e-6 * Math.max(1, b)) throw new Error('FALLO ' + msg + ': ' + a + ' vs ' + b); };
+  const eq = (a, b, msg) => { if (!(Math.abs(a - b) <= 1e-9)) throw new Error('FALLO ' + msg + ': ' + a + ' vs ' + b); };
+  const near = (a, b, msg) => { if (!(Math.abs(a - b) <= 1e-6 * Math.max(1, b))) throw new Error('FALLO ' + msg + ': ' + a + ' vs ' + b); };
   newRun(); G.enemies = [];
   const mapOf = t => MAPS.find(m => m.type === t);
   const mv = G.moves[0];
@@ -124,7 +125,7 @@ src += `
       for (const q of c) if (q !== o && o.solid && q.solid && Math.hypot(o.x - q.x, o.y - q.y) < o.r + q.r + 28 - 1e-9) throw new Error('FALLO solidos demasiado juntos'); } }
   for (const k of ['montana', 'arbol', 'piedra', 'hierba', 'liquido']) if (!(cnt[k] > 20)) throw new Error('FALLO pocas clases ' + k + ': ' + cnt[k]);
   console.log('densidad', JSON.stringify(cnt));
-  const mkO = (k, x, y, r) => ({k, x, y, r, v:0.3, solid:['montana', 'arbol', 'piedra'].includes(k), id:'t' + Math.random(), hp:OBS_HP[k] || 0, flash:0, orbT:0, dead:false});
+  const mkO = (k, x, y, r) => ({k, x, y, r, v:0.3, solid:['montana', 'arbol', 'piedra'].includes(k), id:'t' + Math.random(), hp:OBS_HP[k] || 0, flash:0, orbT:0, dead:false, prog:0});
   const world = list => { getChunk = (cx, cy) => (cx === 0 && cy === 0) ? list : []; };
   const stay = n => { for (let i = 0; i < n; i++) { G.hp = G.maxhp; G.inv = 0; update(1 / 60); } };
   // sólidos empujan al jugador y a los hostiles
@@ -155,14 +156,15 @@ src += `
   for (let i = 0; i < 60; i++) update(1 / 60); eq(G.hp, 100, 'tipo fuego inmune a la lava');
   const recorrido = (sp, tipoMapa) => { newRun(); G.moves = []; G.sp = SPECIES.find(x => x.id === sp); const l = mkO('liquido', 0, 0, 400); world([l]); setMap(MAPS.find(x => x.type === tipoMapa));
     G.px = -300; G.py = 0; keys.d = true; const x0 = G.px; stay(30); keys.d = false; return G.px - x0; };
-  const libre = recorrido('brasito', 'fuego') , agua = recorrido('brasito', 'agua'); near(agua / libre * 1, 0.6 * 1, 'aguas profundas ralentizan x0.6'); // brasito es fuego: en mapa de agua no es inmune
+  const libre = recorrido('brasito', 'fuego') , agua = recorrido('brasito', 'agua'); near(agua / libre * 1, 0.4 * 1, 'aguas profundas: el fuego (tipo contrario) se frena x0.4'); // el agua le gana al fuego: efecto x1,5 -> 1-(1-0.6)*1.5
   const inmune = recorrido('gotin', 'agua'); near(inmune, libre * (SPECIES.find(x => x.id === 'gotin').spd / SPECIES.find(x => x.id === 'brasito').spd) * 1, 'tipo agua inmune a las aguas');
   newRun(); G.moves = []; liqW(); setMap(MAPS.find(x => x.type === 'fuego')); G.px = G.py = 1000; G.enemies = [mk('planta', 1000, 1000, {spd:0}), mk('fuego', 1000, 1000, {spd:0})];
   world([mkO('liquido', 1000, 1000, 90)]); G.chunks = new Map(); getChunk = (cx, cy) => (cx === 2 && cy === 2) ? [mkO('liquido', 1000, 1000, 90)] : []; stay(60);
-  near(1e9 - G.enemies[0].hp, 7, 'lava danya al hostil de planta'); eq(G.enemies[1].hp, 1e9, 'hostil de fuego inmune');
+  near(1e9 - G.enemies[0].hp, 10.5, 'lava: la planta (tipo contrario) sufre x1,5');  eq(G.enemies[1].hp, 1e9, 'hostil de fuego inmune');
   // el aspecto y el efecto cambian con el mapa; el dibujo funciona en todos
   const names = new Set(Object.values(BIOME).map(b => b.n.mont)); eq(names.size, MAPS.length, 'montanas distintas por mapa');
   newRun(); world(['montana', 'arbol', 'piedra', 'hierba', 'liquido'].map((k, i) => mkO(k, 40 + i * 60, 30, 30))); for (const mp of MAPS) { setMap(mp); draw(); }
+  { const neutro = recorrido('chispin', 'agua'), libreC = recorrido('chispin', 'fuego'); near(neutro / libreC, 0.6, 'aguas profundas: un tipo neutro se frena x0.6'); }      // electrico no es contrario del agua
   console.log('OBSTACULOS OK');
   // --- musica ---
   getChunk = () => [];
@@ -283,6 +285,54 @@ src += `
     eq(hb.dead ? 1 : 0, 0, 'la hierba sobrevive al primer disparo'); eq(hb.hp < OBS_HP.hierba ? 1 : 0, 1, 'el primer disparo la daña');
     for (let i = 0; i < 60 * 3 && !hb.dead; i++) { G.hp = G.maxhp; update(1 / 60); } eq(hb.dead ? 1 : 0, 1, 'cae con el segundo disparo'); }
   console.log('HIERBA OK');
+  // --- aparicion progresiva, eventos, cofres y liquidos contrarios ---
+  getChunk = () => []; keys.a = keys.d = false;
+  if (!(spawnRate(0) <= 0.6)) throw new Error('FALLO empieza con demasiados hostiles: ' + spawnRate(0)); if (!(spawnRate(60) < 1.6 && spawnRate(60) > spawnRate(0))) throw new Error('FALLO a los 60 s: ' + spawnRate(60));
+  for (let t = 0; t < 900; t += 30) if (!(spawnRate(t + 30) > spawnRate(t) && spawnCap(t + 30) >= spawnCap(t))) throw new Error('FALLO la aparicion no es progresiva en ' + t);
+  eq(spawnCap(0), 40, 'tope inicial'); eq(spawnCap(10000), 320, 'tope maximo');
+  newRun(); G.moves = []; world([]); G.enemies = []; G.px = G.py = 0; G.evT = 1e9; G.hp = G.maxhp = 100; sombraMap(); for (let i = 0; i < 60 * 30; i++) { G.hp = G.maxhp; G.inv = 0; update(1 / 60); }
+  if (!(G.enemies.length >= 12 && G.enemies.length <= 30)) throw new Error('FALLO hostiles tras 30 s sin matar: ' + G.enemies.length + ' (antes ~60)');
+  newRun(); G.enemies = []; G.t = 100; G.spawnAcc = 0; G.ev = null; spawn(1); const sinMarea = G.enemies.length; G.enemies = []; G.spawnAcc = 0; G.ev = {kind:'marea', t:0, dur:25, mt:1}; spawn(1); eq(sinMarea, 1, 'ritmo normal a los 100 s'); eq(G.enemies.length, 4, 'marea de monstruos: aparecen x2,5');
+  // eventos: primero entre 50 y 75 s, uno a la vez, nunca el mismo seguido, fin y espera
+  for (let i = 0; i < 40; i++) { newRun(); if (!(G.evT >= EV_FIRST[0] && G.evT <= EV_FIRST[1])) throw new Error('FALLO primer evento fuera de rango: ' + G.evT); }
+  newRun(); G.moves = []; world([]); G.enemies = []; G.evT = 0.01; sombraMap(); G.hp = G.maxhp = 100; update(1 / 60); eq(G.ev ? 1 : 0, 1, 'salta un evento'); eq(G.banner ? 1 : 0, 1, 'avisa del evento');
+  { const previo = G.ev.kind; for (let i = 0; i < 200; i++) { const k = G.ev.kind; endEvent(); if (!(G.evT >= EV_GAP[0] && G.evT <= EV_GAP[1])) throw new Error('FALLO espera entre eventos: ' + G.evT); startEvent(); if (G.ev.kind === k) throw new Error('FALLO el mismo evento dos veces seguidas: ' + k); } }
+  { newRun(); sombraMap(); G.sp = SPECIES.find(x => x.id === 'gotin'); G.ev = null; eq(pb('spd'), 1, 'sin lluvia'); G.ev = {kind:'lluvia', t:0, dur:35, mt:1}; eq(pb('spd'), 1.2, 'lluvia: el agua va x1.2'); eq(pb('res'), 1.2, 'lluvia: el agua resiste x1.2');
+    G.sp = SPECIES.find(x => x.id === 'brasito'); eq(pb('dmg'), 0.75, 'lluvia: el fuego hace x0.75'); eq(pb('rate'), 0.85, 'lluvia: el fuego dispara x0.85'); eq(pb('spd'), 1, 'lluvia: el fuego no cambia de velocidad');
+    eq(eb({type:'electrico'}, 'dmg'), 1.2, 'lluvia: hostil electrico x1.2'); eq(eb({type:'sombra'}, 'dmg'), 1, 'lluvia: sombra sin cambios'); G.ev = null; eq(pb('dmg'), 1, 'sin lluvia otra vez'); }
+  // lluvia de fuego: el meteorito avisa en el suelo y cae a su hora
+  newRun(); G.moves = []; world([]); G.enemies = []; G.px = G.py = 0; sombraMap(); G.sp = SPECIES.find(x => x.id === 'chispin'); G.hp = G.maxhp = 100; G.evT = 1e9; G.ev = {kind:'fuego', t:0, dur:30, mt:0}; update(1 / 60);
+  eq(G.meteors.length >= 1 ? 1 : 0, 1, 'aparece un meteorito'); G.meteors = [{x:0, y:0, t:0, hit:false}]; G.ev.mt = 99; for (let i = 0; i < 60; i++) { G.inv = 0; update(1 / 60); } eq(G.hp, 100, 'sin daño durante el aviso (1 s)');
+  for (let i = 0; i < 20; i++) { G.inv = 0; update(1 / 60); } near(100 - G.hp, METEOR.dmg, 'el meteorito pega al caer'); 
+  newRun(); G.moves = []; world([]); G.enemies = [mk('planta', 10, 0, {spd:0}), mk('fuego', 10, 0, {spd:0})]; G.px = G.py = 400; G.evT = 1e9; G.meteors = [{x:0, y:0, t:METEOR.wind - 0.01, hit:false}]; update(1 / 30);
+  eq(G.enemies[0].hp < 1e9 ? 1 : 0, 1, 'el meteorito daña a un hostil'); eq(G.enemies[1].hp, 1e9, 'los hostiles de fuego son inmunes');
+  newRun(); G.moves = []; world([]); G.enemies = []; G.px = G.py = 0; G.sp = SPECIES.find(x => x.id === 'brasito'); G.hp = G.maxhp = 100; G.evT = 1e9; G.meteors = [{x:0, y:0, t:METEOR.wind - 0.01, hit:false}]; update(1 / 30); eq(G.hp, 100, 'tu compañero de fuego es inmune');
+  { const r0 = mkO('piedra', 20, 0, 14), c0 = mkO('cofre', -20, 0, 13); world([r0, c0]); newRun(); world([r0, c0]); G.enemies = []; G.moves = []; G.px = G.py = 0; G.evT = 1e9; G.hp = G.maxhp = 100; G.meteors = [{x:0, y:0, t:METEOR.wind - 0.01, hit:false}]; update(1 / 30); eq(r0.dead && c0.dead ? 1 : 0, 1, 'el meteorito rompe piedras y cofres pequeños'); }
+  // cofres pequeños: se rompen a golpes y dan monedas, experiencia u objeto
+  { const cuenta = {monedas:0, xp:0, objeto:0}; for (let i = 0; i < 600; i++) { newRun(); world([]); const c = mkO('cofre', 0, 0, 13); G.gems = []; G.chestOffers = []; hitObs(c, 10); if (c.dead) throw new Error('FALLO el cofre se rompe con un golpe suave'); hitObs(c, 1e9); if (!c.dead) throw new Error('FALLO el cofre no se rompe');
+      if (G.chestOffers.length) cuenta.objeto++; else if (G.gems.some(g => g.coin)) cuenta.monedas++; else if (G.gems.length) cuenta.xp++; else throw new Error('FALLO cofre vacio'); }
+    if (!(cuenta.monedas > 200 && cuenta.xp > 150 && cuenta.objeto > 20)) throw new Error('FALLO reparto de botin de cofres: ' + JSON.stringify(cuenta)); }
+  // cofres grandes: quedarse cerca bigT s; alejarse hace retroceder el progreso; botin grande y objeto garantizado
+  newRun(); G.moves = []; G.enemies = []; const bg = mkO('cofreg', 50, 0, 20); world([bg]); G.px = G.py = 0; G.evT = 1e9; G.hp = G.maxhp = 100; G.gems = []; G.chestOffers = [];
+  for (let i = 0; i < 60 * 3; i++) { G.hp = G.maxhp; update(1 / 60); } near(bg.prog, 3, 'progreso del cofre grande'); G.px = 400; for (let i = 0; i < 60 * 2; i++) { G.hp = G.maxhp; update(1 / 60); } near(bg.prog, 2, 'alejarse lo hace retroceder a media velocidad');
+  G.px = 0; for (let i = 0; i < 60 * 5; i++) { G.hp = G.maxhp; update(1 / 60); if (bg.dead) break; } eq(bg.dead ? 1 : 0, 1, 'se abre tras bigT s cerca'); eq(G.gems.filter(g => g.coin).length, 6, 'cofre grande: 6 monedas'); eq(G.gems.filter(g => !g.coin).length, 3, 'cofre grande: 3 gemas'); eq(curOffer && curOffer.chest ? 1 : 0, 1, 'cofre grande: sale la oferta de objeto'); eq(curOffer.big ? 1 : 0, 1, 'oferta marcada como cofre grande'); eq(curOffer.opts.length, 2, 'dos objetos a elegir'); eq(G.paused ? 1 : 0, 1, 'el juego se pausa para elegir'); G.paused = false;
+  // elegir una recompensa oculta la pantalla y REANUDA el juego (un comentario mal puesto lo rompió una vez)
+  { newRun(); G.moves = []; world([]); G.enemies = []; G.evT = 1e9; const quitadas = []; document.querySelector('#ovLvl').classList.remove = c => quitadas.push(c);
+    G.pending = [2]; update(1 / 60); eq(G.paused ? 1 : 0, 1, 'sale la subida de nivel y se pausa'); chooseOffer(curOffer.opts[0]); eq(G.paused ? 1 : 0, 0, 'elegir recompensa reanuda el juego'); eq(quitadas.includes('on') ? 1 : 0, 1, 'elegir recompensa oculta la pantalla'); eq(G.pending.length, 0, 'el nivel pendiente se consume');
+    G.chestOffers = [{kind:'item', chest:true, big:false, opts:[{k:'item', id:'iman'}, {k:'item', id:'foco'}]}]; quitadas.length = 0; update(1 / 60); eq(G.paused ? 1 : 0, 1, 'sale la oferta del cofre y se pausa'); chooseOffer(curOffer.opts[0]); eq(G.paused ? 1 : 0, 0, 'elegir objeto de cofre reanuda el juego'); eq(quitadas.includes('on') ? 1 : 0, 1, 'elegir objeto de cofre oculta la pantalla');
+    const x0 = G.t; update(1 / 60); if (!(G.t > x0)) throw new Error('FALLO el tiempo no avanza tras elegir'); }
+  // la oferta del cofre no consume una subida de nivel
+  newRun(); G.pending = [5]; G.chestOffers = [{kind:'item', chest:true, big:false, opts:[{k:'item', id:'iman'}, {k:'item', id:'foco'}]}]; G.moves = []; world([]); G.enemies = []; G.evT = 1e9; update(1 / 60);
+  eq(G.pending.length, 1, 'el nivel pendiente sigue ahi'); eq(curOffer.chest ? 1 : 0, 0, 'primero sale la subida de nivel'); chooseOffer(curOffer.opts[0]);
+  newRun(); G.pending = []; G.chestOffers = [{kind:'item', chest:true, big:false, opts:[{k:'item', id:'iman'}, {k:'item', id:'foco'}]}]; G.moves = []; world([]); G.enemies = []; G.evT = 1e9; update(1 / 60); eq(curOffer.chest ? 1 : 0, 1, 'sale la oferta del cofre'); eq(G.paused ? 1 : 0, 1, 'el juego se pausa');
+  G.pending = [7]; chooseOffer(curOffer.opts[1]); if (G.item !== 'foco') throw new Error('FALLO se elige el objeto: ' + G.item); eq(G.pending.length, 1, 'elegir un objeto de cofre no gasta el nivel pendiente'); G.pending = []; G.paused = false;
+  // liquidos: el tipo contrario sufre mas y hace menos daño; el del mapa, nada; el resto, normal
+  newRun(); setMap(MAPS.find(x => x.type === 'fuego')); eq(contraryTo('planta') ? 1 : 0, 1, 'la planta es contraria al fuego'); eq(contraryTo('agua') ? 1 : 0, 0, 'el agua no'); let le = liqEffect('planta', BIOME.fuego); near(le.dps, 10.5, 'lava x1.5 al contrario'); eq(le.nerf ? 1 : 0, 1, 'contrario con nerf'); le = liqEffect('agua', BIOME.fuego); near(le.dps, 7, 'lava normal al neutro'); eq(le.nerf ? 1 : 0, 0, 'neutro sin nerf'); eq(liqEffect('fuego', BIOME.fuego), null, 'el tipo del mapa, inmune');
+  setMap(MAPS.find(x => x.type === 'agua')); le = liqEffect('fuego', BIOME.agua); near(le.slow, 0.4, 'agua: el contrario se frena x0.4'); le = liqEffect('planta', BIOME.agua); near(le.slow, 0.6, 'agua: el neutro x0.6'); eq(liqEffect('agua', BIOME.agua), null, 'agua: su tipo no se frena');
+  newRun(); G.moves = []; G.enemies = []; sombraMap(); G.sp = SPECIES.find(x => x.id === 'brotin'); setMap(MAPS.find(x => x.type === 'fuego')); world([mkO('liquido', 0, 0, 200)]); G.px = G.py = 0; G.evT = 1e9; update(1 / 60); eq(G.liqNerf ? 1 : 0, 1, 'el contrario en su liquido queda debilitado'); near(pb('dmg'), 0.8, 'daño x0.8 dentro del liquido'); G.px = 900; update(1 / 60); eq(G.liqNerf ? 1 : 0, 0, 'fuera del liquido se recupera'); near(pb('dmg'), 1, 'daño normal fuera');
+  { const e1 = mk('planta', 0, 0, {spd:0}); G.enemies = [e1]; G.px = G.py = 900; update(1 / 60); eq(e1.liqNerf ? 1 : 0, 1, 'hostil contrario debilitado'); near(eb(e1, 'dmg'), 0.8, 'su daño x0.8'); }
+  newRun(); G.moves = []; world([mkO('cofre', 60, 0, 13), mkO('cofreg', 120, 0, 20), mkO('liquido', 0, 0, 80)]); G.enemies = [spawnBoss('fuego', 400, 0, 1e9)]; G.ev = {kind:'lluvia', t:1, dur:35, mt:1}; draw(); G.ev = {kind:'marea', t:1, dur:25, mt:1}; draw(); G.ev = {kind:'fuego', t:1, dur:30, mt:1}; G.meteors = [{x:50, y:50, t:0.5, hit:false}]; draw(); G.ev = null; draw();
+  console.log('EVENTOS Y COFRES OK');
   // --- version coherente con la documentacion ---
   const top = (__changelog.match(/^## v(\\d+\\.\\d+\\.\\d+)/m) || [])[1]; if (top !== VERSION) throw new Error('FALLO version: index.html=' + VERSION + ' CHANGELOG=' + top);
   if (!__readme.includes('v' + VERSION)) throw new Error('FALLO el README no menciona la version v' + VERSION);

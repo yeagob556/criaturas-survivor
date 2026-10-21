@@ -12,6 +12,7 @@ def nuevo(b, w, h, mobile=False):
     pg.on('console', lambda m: logs.append(f'[{m.type}] {m.text}') if m.type in ('error', 'warning') else None)
     pg.on('pageerror', lambda e: logs.append('PAGEERROR ' + str(e)))
     return ctx, pg
+LIBRE = "G.chestOffers = []; G.pending = []; G.gems = []; G.xp = 0; if (G.paused && curOffer) { chooseOffer(curOffer.opts[0]); } G.paused = false; "   # cierra elecciones de objeto/nivel pendientes (si no, el juego queda en pausa)
 with sync_playwright() as p:
     b = p.chromium.launch(args=['--no-sandbox', '--disable-dev-shm-usage', '--autoplay-policy=no-user-gesture-required'])
     ctx, pg = nuevo(b, 1100, 620)
@@ -33,25 +34,40 @@ with sync_playwright() as p:
     pg.screenshot(path=OUT + '10-partida.png')
     pg.evaluate("G.pending.push(G.lvl + 1)"); pg.wait_for_timeout(500); pg.screenshot(path=OUT + '11-subida-nivel.png'); pg.click('.card'); pg.wait_for_timeout(200)
     for i in range(6):
-        pg.evaluate(f"G.enemies = []; G.px = 900 + {i}*700; G.py = 500 + {i}*300; G.cam.x = G.px; G.cam.y = G.py; setMap(MAPS[{i}])")
+        pg.evaluate(LIBRE + f"G.enemies = []; G.px = 900 + {i}*700; G.py = 500 + {i}*300; G.cam.x = G.px; G.cam.y = G.py; setMap(MAPS[{i}])")
         pg.wait_for_timeout(900); pg.screenshot(path=OUT + f'20-mapa-{i}.png')
-    pg.evaluate("G.enemies = []; setMap(MAPS[0]); G.px = 0; G.py = 0; G.cam.x = 0; G.cam.y = 0;"
+    pg.evaluate(LIBRE + "G.enemies = []; setMap(MAPS[0]); G.px = 0; G.py = 0; G.cam.x = 0; G.cam.y = 0;"
                 "const et = ENEMY_TYPES.find(x => x.id === 'magmaroca'); G.enemies.push({...et, x: 200, y: 0, hp: 1e6, maxhp: 1e6, kx: 0, ky: 0, flash: 0, orbT: 0, shootT: 2, ph: 0, hpBuf: 1, rBuf: 1, dcd: 0, ds: null, disc: true})")
     pg.wait_for_function("G.enemies.some(e => e.ds && e.ds.ph === 'wind')", timeout=5000); pg.wait_for_timeout(450)
     pg.screenshot(path=OUT + '30-embestida-aviso.png')
     pasos = {'fuego': 0, 'agua': 2, 'planta': 1, 'electrico': 0, 'sombra': 2, 'dragon': 2}
     for k, (bt, paso) in enumerate(pasos.items()):
-        pg.evaluate(f"G.enemies = []; setMap(MAPS.find(m => m.type === '{bt}')); G.px = 0; G.py = 0; G.cam.x = 0; G.cam.y = 0; G.tornados = [];"
+        pg.evaluate(LIBRE + f"G.enemies = []; setMap(MAPS.find(m => m.type === '{bt}')); G.px = 0; G.py = 0; G.cam.x = 0; G.cam.y = 0; G.tornados = [];"
                     f"const jf = spawnBoss('{bt}', 230, -30, 9000); jf.spd = 0; jf.disc = true; jf.bs.i = {paso}-1; jf.bs.t = 0; jf.bs.ph = 'rec'")
         pg.wait_for_function("G.enemies.some(e => e.boss && e.bs.ph === 'wind')", timeout=8000); pg.wait_for_timeout(420)
         pg.screenshot(path=OUT + f'40-jefe-{bt}.png')
-    pg.evaluate("G.enemies = []; setMap(MAPS[0]); const jf = spawnBoss('fuego', 230, -30, 9000); jf.spd = 0; jf.disc = true; jf.hp = 2000")
+    pg.evaluate(LIBRE + "G.enemies = []; setMap(MAPS[0]); const jf = spawnBoss('fuego', 230, -30, 9000); jf.spd = 0; jf.disc = true; jf.hp = 2000")
     pg.wait_for_timeout(1200); pg.screenshot(path=OUT + '41-jefe-furia.png')
     # hierba (sin atacar: tus disparos la romperían al instante) y líquido
-    pg.evaluate("G.enemies = []; G.moves = []; G.px = 1500; G.py = 1100; G.cam.x = G.px; G.cam.y = G.py; setMap(MAPS[2]);"
+    pg.evaluate(LIBRE + "G.enemies = []; G.moves = []; G.px = 1500; G.py = 1100; G.cam.x = G.px; G.cam.y = G.py; setMap(MAPS[2]);"
                 "getChunk(Math.floor(G.px/CH), Math.floor(G.py/CH)).push({k:'hierba', x: G.px, y: G.py, r: 70, v: .3, solid: false, id: 'cap1', hp: OBS_HP.hierba, flash: 0, orbT: 0, dead: false});"
                 "getChunk(Math.floor(G.px/CH), Math.floor(G.py/CH)).push({k:'liquido', x: G.px + 160, y: G.py + 10, r: 90, v: .5, solid: false, id: 'cap2', hp: 0, flash: 0, orbT: 0, dead: false})")
     pg.wait_for_timeout(1500); pg.screenshot(path=OUT + '50-hierba-vision.png')
+    # eventos aleatorios (sin atacar, y fijando la posición para ver bien el ambiente)
+    base = LIBRE + "G.enemies = []; G.moves = []; G.px = 600; G.py = 400; G.cam.x = G.px; G.cam.y = G.py; G.evT = 1e9; G.ev = null; G.meteors = []; G.tornados = []; G.vis = 0; setMap(MAPS[0]);"
+    pg.evaluate(base + "startEvent('marea'); const t0 = G.t; G.t = 200; for (let i = 0; i < 40; i++) spawn(0.2); G.t = t0; G.ev.t = 3")
+    pg.wait_for_timeout(900); pg.screenshot(path=OUT + '51-evento-marea.png')
+    pg.evaluate(base + "startEvent('lluvia')"); pg.wait_for_timeout(900); pg.screenshot(path=OUT + '52-evento-lluvia.png')
+    pg.evaluate(base + "startEvent('fuego'); G.meteors.push({x: G.px + 140, y: G.py - 30, t: 0.5, hit: false}, {x: G.px - 120, y: G.py + 90, t: 0.9, hit: false}, {x: G.px + 10, y: G.py + 10, t: 0.2, hit: false}); G.ev.mt = 99")
+    pg.wait_for_timeout(150); pg.screenshot(path=OUT + '53-evento-fuego.png')
+    # cofres pequeño y grande (a medio abrir) y líquido que debilita al tipo contrario
+    pg.evaluate(base + "G.sp = SPECIES.find(s => s.id === 'brotin'); const ch = getChunk(Math.floor(G.px/CH), Math.floor(G.py/CH));"
+                "ch.push({k:'cofre', x: G.px + 90, y: G.py - 40, r: 13, v: .3, solid: false, id: 'cap-c1', hp: OBS_HP.cofre, flash: 0, orbT: 0, dead: false, prog: 0});"
+                "ch.push({k:'cofre', x: G.px + 140, y: G.py + 50, r: 13, v: .3, solid: false, id: 'cap-c2', hp: OBS_HP.cofre, flash: 0, orbT: 0, dead: false, prog: 0});"
+                "ch.push({k:'cofreg', x: G.px - 120, y: G.py - 20, r: 20, v: .3, solid: false, id: 'cap-cg', hp: 0, flash: 0, orbT: 0, dead: false, prog: 0});")
+    pg.evaluate("G.px = 600 - 120 + 40; G.py = 400 - 20"); pg.wait_for_timeout(3200); pg.screenshot(path=OUT + '54-cofres.png')
+    pg.evaluate("G.px = 600 + 110; G.py = 400 + 20; setMap(MAPS[0]); const l = getChunk(Math.floor(G.px/CH), Math.floor(G.py/CH)); l.push({k:'liquido', x: G.px, y: G.py, r: 110, v: .5, solid: false, id: 'cap-lq', hp: 0, flash: 0, orbT: 0, dead: false, prog: 0})")
+    pg.wait_for_timeout(1200); pg.screenshot(path=OUT + '55-liquido-debil.png')
     fps = pg.evaluate("""() => new Promise(res => { G.enemies = []; for (let i = 0; i < 200; i++) { const et = ENEMY_TYPES[i % 6]; G.enemies.push({...et, x: G.px + (Math.random()-.5)*900, y: G.py + (Math.random()-.5)*600, hp: 1e6, maxhp: 1e6, kx: 0, ky: 0, flash: 0, orbT: 0, shootT: 9, ph: 0, hpBuf: 1, rBuf: 1, dcd: 9, ds: null, disc: true}); }
         let n = 0, t0 = performance.now(); const f = () => { n++; if (performance.now() - t0 < 3000) requestAnimationFrame(f); else res(n / 3); }; requestAnimationFrame(f); })""")
     print('FPS_APROX (200 hostiles, sin GPU):', round(fps, 1))

@@ -2,6 +2,15 @@
 
 Versionado: `0.x.0` por cada mejora (la 0.1.0 es la primera versión); `0.x.y` para correcciones. La versión que muestra el juego (`VERSION` en `index.html`) debe coincidir con el primer encabezado de este fichero.
 
+## v0.9.0 — 2026-10-21 · Eventos aleatorios, cofres, aparición progresiva y líquidos contrarios
+- **Aparición progresiva:** los hostiles pasan de 1,4/s al empezar a 0,5/s y suben con el tiempo (`spawnRate(t) = 0.5 + t/80 + 2(t/300)²`; tope simultáneo `spawnCap` 40 → 320). En los primeros 30 s hay ~20 en vez de ~60.
+- **Eventos aleatorios** (el primero a los 50-75 s, luego uno cada 45-75 s, nunca el mismo dos veces seguidas, con chip en el HUD y cuenta atrás): **Marea de monstruos** (aparición ×2,5 y tope ×1,5, viñeteado rojo), **Lluvia de agua** (buffs y nerfeos por tipo, `RAIN_FX`: agua ×1.2 velocidad y resistencia, planta ×1.1 velocidad, eléctrico ×1.2 daño, fuego ×0.75 daño y ×0.85 cadencia; lluvia y tinte azul) y **Lluvia de fuego** (meteoritos cada 0,8-1,5 s, casi la mitad apuntan a ti: círculo en el suelo que se llena durante 1,3 s y meteorito que cae con estela; 22 de daño; los de fuego son inmunes; rompen piedras, hierba y cofres pequeños).
+- **Cofres:** pequeños (25 de vida, se rompen a golpes, también con áreas y meteoritos: 50% monedas, 38% experiencia, 12% objeto a elegir) y grandes (hay que quedarse a menos de 80 px durante 6 s con un aro de progreso; si te alejas retrocede a media velocidad; dan 6 monedas, 3 gemas, +25% de vida y siempre un objeto a elegir entre dos). Las elecciones de cofre no consumen una subida de nivel.
+- **Líquidos por tipo:** el tipo del mapa sigue inmune (ni lo frena ni lo daña); el **tipo contrario** (al que el tipo del mapa le gana) sufre el efecto ×1,5 y además hace un 20% menos de daño mientras está dentro; el resto, el efecto normal. Vale para ti y para los hostiles.
+- **Corregido durante las pruebas:** un comentario mal colocado dejaba el juego pausado y con la pantalla de recompensa abierta tras elegir (sólo en esta versión, nunca publicado). `smoke.js` ahora exige que la simulación de 12 min avance de verdad y que elegir una recompensa reanude el juego y oculte la pantalla; además `eq`/`near` ya no dejan pasar comparaciones con `NaN`.
+- `scripts/capturas.py`: escenas nuevas (los 3 eventos, cofres, líquido que debilita) y limpieza de elecciones pendientes entre escenas.
+- `scripts/smoke.js`: aparición progresiva, calendario y exclusividad de eventos, buffs de lluvia, marea ×2,5, meteoritos (aviso, daño, inmunidad de fuego, rotura de objetos), reparto de botín de cofres pequeños, progreso y apertura de cofres grandes, ofertas de cofre, y líquidos contrarios/neutros/propios.
+
 ## v0.8.4 — 2026-10-21 · La hierba aguanta más
 - La hierba alta pasa de 10 a 22,5 de vida (la mitad que una piedra, `OBS_HP.hierba = OBS_HP.piedra/2`): un disparo suelto ya no la rompe al instante y la visión reducida se nota más tiempo si atacas desde dentro. Con Ascuas nivel 1 hacen falta dos disparos (~1,3 s).
 - `scripts/smoke.js`: comprueba que la hierba tiene la mitad de vida que una piedra y que sobrevive al primer disparo de Ascuas pero cae con el segundo.

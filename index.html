@@ -110,7 +110,7 @@ const fmtT = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(Mat
 
 /* ---------- 1. DATOS ---------- */
 // Versión visible en el menú, la Guía y la esquina del juego. Debe coincidir con el último encabezado de CHANGELOG.md (lo comprueba scripts/smoke.js).
-const VERSION = '0.8.4', VERSION_DATE = '2026-10-21';
+const VERSION = '0.9.0', VERSION_DATE = '2026-10-21';
 const TYPES = {
   fuego:{n:'Fuego',c:'#ff7a3d',h:18}, agua:{n:'Agua',c:'#4aa8ff',h:205}, planta:{n:'Planta',c:'#5fcf6a',h:120},
   electrico:{n:'Eléctrico',c:'#ffd93b',h:50}, sombra:{n:'Sombra',c:'#8a5cc2',h:270}, dragon:{n:'Dragón',c:'#4f6bff',h:230}
@@ -233,8 +233,22 @@ const BIOME = {
   dragon:   {n:{mont:'Cumbre nevada',   arbol:'Pino azul',       piedra:'Roca azul',      hierba:'Nubes bajas',    liq:'Ácido'},
              mont:['#2a3a7a','#5f78d0','#e0e8ff'], arbol:['#3a3a5a','#4f6bff'], shape:'pine', piedra:['#4a5a9a','#7a90e0'], hierba:['#3a4aa0','#6a80e8'], liq:['#3a6a2a','#a0e040'], eff:{dps:6}},
 };
-const OBS_HP = {piedra:45};
+const OBS_HP = {piedra:45, cofre:25};
 OBS_HP.hierba = OBS_HP.piedra/2;           // la hierba aguanta la mitad que una piedra (22,5): un disparo suelto no la rompe
+// Aparición progresiva de hostiles: pocos al empezar y cada vez más (hostiles por segundo y tope simultáneo).
+const spawnRate = t => 0.5 + t/80 + 2*(t/300)**2;
+const spawnCap = t => Math.min(40 + 0.8*t, 320);
+// Eventos aleatorios: uno a la vez, el primero a los 50-75 s y luego uno cada 45-75 s; nunca el mismo dos veces seguidas.
+const EVENTS = {
+  marea:  {name:'Marea de monstruos', dur:25, col:'#ff4d6d'},     // aparecen ×MAREA_X hostiles
+  lluvia: {name:'Lluvia de agua',     dur:35, col:'#4aa8ff'},     // buffs y nerfeos por tipo (RAIN_FX)
+  fuego:  {name:'Lluvia de fuego',    dur:30, col:'#ff7a3d'},     // meteoritos con aviso en el suelo
+};
+const EV_FIRST = [50, 75], EV_GAP = [45, 75], MAREA_X = 2.5;
+const RAIN_FX = {agua:{spd:1.2, res:1.2}, planta:{spd:1.1}, electrico:{dmg:1.2}, fuego:{dmg:0.75, rate:0.85}};   // multiplicadores por tipo y estadística
+const METEOR = {R:55, wind:1.3, dmg:22, gap:[0.8, 1.5]};                                                            // radio, segundos de aviso, daño y cadencia
+// Cofres: los pequeños se rompen a golpes; los grandes se abren quedándote cerca bigT segundos (a menos de bigR px).
+const CHEST = {bigR:80, bigT:6};
 // Legendarios: uno por tipo; el jefe que aparece cada 4 minutos es de un tipo al azar.
 const LEG = {
   fuego:    {name:'Solarax',   seed:101}, agua:   {name:'Abisomar', seed:102}, planta: {name:'Gaiarbol', seed:103},
@@ -443,7 +457,8 @@ function newRun(){
     sp, shiny, t:0, over:false, paused:false, locked:false,
     px:0, py:0, face:1, inv:0, maxhp:0, hp:0, spdBonus:1, magBonus:1, dmgBonus:1,
     map:null, mapT:MAP_EVERY, newDisc:[], baseMax:0, lvl:1, xp:0, pending:[], kills:0, coins:0, rerolls:1, item:null, pas:{}, tornados:[], ps:{slow:0, root:0, burn:0, dark:0}, seed:(Math.random()*2147483647)|0, chunks:new Map(), broken:new Set(),
-    near:{solid:[],dest:[],liq:[],grass:[]}, vis:0, liq:null,
+    near:{solid:[],dest:[],liq:[],grass:[],big:[]}, vis:0, liq:null, liqF:null, liqNerf:false,
+    ev:null, evT:rnd(EV_FIRST[0], EV_FIRST[1]), evLast:null, meteors:[], chestOffers:[], chestNear:null,
     moves:[{id:sp.move, lvl:1, t:0.3, links:[]}],   // cada elemento = un hueco; links = movimientos unidos (Vínculo)
     sel:0, enemies:[], proj:[], ebul:[], gems:[], fx:[], txt:[], spawnAcc:0, nextBoss:180, bossN:0, banner:null, orbAng:0, cam:{x:0,y:0},
   };
@@ -454,9 +469,10 @@ function newRun(){
 
 /* ---------- 6. LÓGICA ---------- */
 // Buff del mapa: MAP_BUFF si el tipo coincide con el del mapa Y la estadística es la especialidad de ese tipo.
-function buffFor(type, stat){ return (G && G.map && G.map.type===type && TYPE_BUFF[type].stat===stat) ? MAP_BUFF : 1; }
-const pb = stat => buffFor(G.sp.type, stat);          // buff de tu compañero
-const eb = (e, stat) => buffFor(e.type, stat);        // buff de un hostil
+const evMul = (type, stat) => (G && G.ev && G.ev.kind === 'lluvia' && RAIN_FX[type] && RAIN_FX[type][stat]) || 1;     // buffs y nerfeos de la lluvia de agua
+function buffFor(type, stat){ return ((G && G.map && G.map.type===type && TYPE_BUFF[type].stat===stat) ? MAP_BUFF : 1) * evMul(type, stat); }
+const pb = stat => buffFor(G.sp.type, stat) * (stat==='dmg' && G.liqNerf ? 0.8 : 1);          // buff de tu compañero (y -20% de daño si estás en un líquido que te debilita)
+const eb = (e, stat) => buffFor(e.type, stat) * (stat==='dmg' && e.liqNerf ? 0.8 : 1);        // buff de un hostil
 function syncEnemy(e){                                // vida y tamaño se aplican al cambiar de mapa (y se revierten)
   const th = eb(e,'hp'), tr = eb(e,'size');
   if(e.hpBuf !== th){ const r = th/e.hpBuf; e.hp *= r; e.maxhp *= r; e.hpBuf = th; }
@@ -501,19 +517,21 @@ function getChunk(cx, cy){
     const rad = rmin + r()*(rmax-rmin), x = x0 + M + r()*(CH-2*M), y = y0 + M + r()*(CH-2*M), v = r(), id = key + ':' + (idx++);
     if(Math.hypot(x, y) < 170 + rad || G.broken.has(id)) continue;
     if(solid && out.some(o => o.solid && Math.hypot(o.x-x, o.y-y) < o.r + rad + 28)) continue;
-    out.push({k, x, y, r:rad, v, solid, id, hp:OBS_HP[k]||0, flash:0, orbT:0, dead:false}); } };
+    out.push({k, x, y, r:rad, v, solid, id, hp:OBS_HP[k]||0, flash:0, orbT:0, dead:false, prog:0}); } };
   place('montana', r() < 0.5 ? 1 : 0, 40, 58, true);
   place('arbol',   2 + Math.floor(r()*3), 13, 13, true);
   place('piedra',  1 + Math.floor(r()*3), 12, 16, true);
   place('hierba',  1 + Math.floor(r()*3), 28, 50, false);
   place('liquido', r() < 0.5 ? 1 : 0, 55, 100, false);
+  place('cofre',   r() < 0.5 ? 1 : 0, 13, 13, false);       // cofres: al final, para no cambiar el terreno ya generado
+  place('cofreg',  r() < 0.12 ? 1 : 0, 20, 20, false);
   G.chunks.set(key, out); return out;
 }
 function refreshNear(){                                      // objetos de los 5x5 trozos alrededor del jugador
-  const pcx = Math.floor(G.px/CH), pcy = Math.floor(G.py/CH), n = {solid:[], dest:[], liq:[], grass:[]};
+  const pcx = Math.floor(G.px/CH), pcy = Math.floor(G.py/CH), n = {solid:[], dest:[], liq:[], grass:[], big:[]};
   for(let j=-2;j<=2;j++) for(let i=-2;i<=2;i++) for(const o of getChunk(pcx+i, pcy+j)){ if(o.dead) continue;
     if(o.solid) n.solid.push(o);
-    if(o.k==='piedra') n.dest.push(o); else if(o.k==='hierba'){ n.dest.push(o); n.grass.push(o); } else if(o.k==='liquido') n.liq.push(o); }
+    if(o.k==='piedra' || o.k==='cofre') n.dest.push(o); else if(o.k==='hierba'){ n.dest.push(o); n.grass.push(o); } else if(o.k==='cofreg') n.big.push(o); else if(o.k==='liquido') n.liq.push(o); }
   G.near = n;
   if(G.chunks.size > 80) for(const key of [...G.chunks.keys()]){ const [a, b] = key.split(',').map(Number); if(Math.abs(a-pcx) > 4 || Math.abs(b-pcy) > 4) G.chunks.delete(key); }
 }
@@ -521,12 +539,60 @@ function hitObs(o, d){                                       // piedras y hierba
   if(o.dead || !OBS_HP[o.k]) return;
   o.hp -= d; o.flash = 0.12;
   if(o.hp <= 0){ o.dead = true; G.broken.add(o.id);
-    G.fx.push({k:'ring', x:o.x, y:o.y, r:4, max:o.r+10, life:0.3, t:0.3, col:BIOME[G.map.type][o.k==='piedra'?'piedra':'hierba'][1]});
+    G.fx.push({k:'ring', x:o.x, y:o.y, r:4, max:o.r+10, life:0.3, t:0.3, col:o.k==='cofre' ? '#ffd93b' : BIOME[G.map.type][o.k==='piedra'?'piedra':'hierba'][1]});
     beep(o.k==='piedra' ? 140 : 260, 0.08, 'triangle', 0.03, -60);
-    if(o.k==='piedra' && Math.random() < 0.3) G.gems.push({x:o.x, y:o.y, v:0, coin:true, c:1}); }
+    if(o.k==='cofre') openChest(o, false);
+    else if(o.k==='piedra' && Math.random() < 0.3) G.gems.push({x:o.x, y:o.y, v:0, coin:true, c:1}); }
+}
+function openChest(o, big){                                  // botín de un cofre: monedas, experiencia o un objeto a elegir
+  const g = G, m = mult(); o.dead = true; g.broken.add(o.id);
+  g.fx.push({k:'ring', x:o.x, y:o.y, r:6, max:big ? 70 : 36, life:0.5, t:0.5, col:'#ffd93b'}); beep(660,0.1,'square',0.05); setTimeout(() => beep(990,0.15,'square',0.05), 90);
+  const spot = () => ({x:o.x + rnd(-26,26), y:o.y + rnd(-26,26)});
+  const coins = (n, c) => { for(let i=0;i<n;i++) g.gems.push({...spot(), v:0, coin:true, c:Math.ceil(c*m.coin)}); };
+  const xp = (n, v) => { for(let i=0;i<n;i++) g.gems.push({...spot(), v, coin:false}); };
+  const item = () => g.chestOffers.push({kind:'item', chest:true, big, opts:shuffle(Object.keys(ITEMS)).slice(0,2).map(id => ({k:'item', id}))});
+  let msg;
+  if(big){ coins(6, 3); xp(3, 10); g.hp = Math.min(g.maxhp, g.hp + g.maxhp*0.25); item(); msg = '¡Cofre grande!'; }
+  else { const r = Math.random();
+    if(r < 0.5){ coins(2 + Math.floor(Math.random()*3), 2); msg = 'Monedas'; } else if(r < 0.88){ xp(3, 3); msg = 'Experiencia'; } else { item(); msg = '¡Objeto!'; } }
+  if(g.txt.length < 40) g.txt.push({x:o.x, y:o.y-16, s:msg, t:1.2, c:'#ffd93b'});
 }
 function hitArea(x, y, R, d){ for(const o of G.near.dest) if(!o.dead && (o.x-x)**2 + (o.y-y)**2 < (R+o.r)**2) hitObs(o, d); }
+// Líquido del mapa según el tipo de la criatura: el del tipo del mapa ni se frena ni se daña; el tipo CONTRARIO (al que el tipo del mapa
+// le gana) sufre el efecto ×1,5 y además hace un 20% menos de daño mientras está dentro; el resto, el efecto normal.
+const contraryTo = t => STRONG[G.map.type] === t;
+function liqEffect(type, bio){
+  if(type === G.map.type) return null;
+  const c = contraryTo(type), k = c ? 1.5 : 1, e = bio.eff;
+  return {slow: e.slow ? 1 - (1-e.slow)*k : 1, dps: (e.dps||0)*k, nerf: c};
+}
 function liqAt(x, y){ for(const o of G.near.liq){ const dx = (x-o.x)/o.r, dy = (y-o.y)/(o.r*0.65); if(dx*dx + dy*dy < 1) return o; } return null; }
+
+/* ---------- Eventos aleatorios ---------- */
+function startEvent(kind){
+  const g = G; kind = kind || pick(Object.keys(EVENTS).filter(k => k !== g.evLast)); const E = EVENTS[kind];
+  g.ev = {kind, t:0, dur:E.dur, mt:1}; g.evLast = kind;
+  g.banner = {s:'¡' + E.name + '!', t:3.5}; g.fx.push({k:'mapflash', life:0.8, t:0.8, col:E.col}); beep(180,0.4,'sawtooth',0.06,-60);
+}
+function endEvent(){ const g = G; g.banner = {s:'Fin: ' + EVENTS[g.ev.kind].name, t:2}; g.ev = null; g.evT = rnd(EV_GAP[0], EV_GAP[1]); }
+function meteorHit(m){
+  const g = G, R = METEOR.R;
+  g.fx.push({k:'ring', x:m.x, y:m.y, r:8, max:R, life:0.45, t:0.45, col:TYPES.fuego.c}); beep(90,0.3,'sawtooth',0.06,-40);
+  if(g.sp.type !== 'fuego' && Math.hypot(g.px-m.x, g.py-m.y) < R + 10) playerHit(METEOR.dmg, 'fuego');       // las criaturas de fuego son inmunes
+  for(const e of g.enemies) if(e.type !== 'fuego' && !e.dead && Math.hypot(e.x-m.x, e.y-m.y) < R + e.r) hurt(e, METEOR.dmg*1.5, 'fuego', true);
+  hitArea(m.x, m.y, R, 60);                                  // un impacto rompe de golpe piedras (45), hierba y cofres pequeños
+}
+function updateEvents(dt){
+  const g = G;
+  if(!g.ev){ g.evT -= dt; if(g.evT <= 0) startEvent(); }
+  else { const ev = g.ev; ev.t += dt;
+    if(ev.kind === 'fuego'){ ev.mt -= dt; if(ev.mt <= 0){ ev.mt = rnd(METEOR.gap[0], METEOR.gap[1]);
+      const aim = Math.random() < 0.45, a = rnd(0, Math.PI*2), d = rnd(40, 340);           // casi la mitad apuntan donde estás
+      g.meteors.push({x:aim ? g.px + rnd(-20,20) : g.px + Math.cos(a)*d, y:aim ? g.py + rnd(-20,20) : g.py + Math.sin(a)*d, t:0, hit:false}); } }
+    if(ev.t >= ev.dur) endEvent(); }
+  for(const m of g.meteors){ m.t += dt; if(!m.hit && m.t >= METEOR.wind){ m.hit = true; meteorHit(m); } }
+  g.meteors = g.meteors.filter(m => m.t < METEOR.wind + 0.4);
+}
 
 /* ---------- Monstruos: embestidas y jefes con guion ---------- */
 function spawnBoss(bt, x, y, hp){
@@ -742,8 +808,9 @@ function kill(e){
 
 function spawn(dt){
   const t = G.t;
-  G.spawnAcc += dt * (1.4 + t/22);
-  const cap = Math.min(80 + t*0.9, 320);
+  const marea = G.ev && G.ev.kind === 'marea';
+  G.spawnAcc += dt * spawnRate(t) * (marea ? MAREA_X : 1);
+  const cap = Math.min(spawnCap(t) * (marea ? 1.5 : 1), 360);
   while(G.spawnAcc >= 1){ G.spawnAcc -= 1; if(G.enemies.length >= cap) continue;
     const pool = ENEMY_TYPES.filter(e => t >= e.from);
     const w = pool.map((e,i) => i===pool.length-1 ? 1.2 : (i===0 ? 2 : 1.3));
@@ -782,20 +849,26 @@ function update(dt){
   g.t += dt;
   g.mapT -= dt; if(g.mapT <= 0) changeMap();
   refreshNear(); const bio = BIOME[g.map.type]; for(const o of g.near.dest){ o.orbT -= dt; o.flash -= dt; }
+  updateEvents(dt);
   if(g.inv>0) g.inv -= dt;
   // movimiento
   let ix = (keys.d||keys.arrowright?1:0) - (keys.a||keys.arrowleft?1:0), iy = (keys.s||keys.arrowdown?1:0) - (keys.w||keys.arrowup?1:0);
   if(touch){ const dx = touch.x-touch.ox, dy = touch.y-touch.oy, l = Math.hypot(dx,dy); if(l>8){ ix = dx/Math.max(l,40); iy = dy/Math.max(l,40); } }
   const il = Math.hypot(ix,iy); if(il>1){ ix/=il; iy/=il; }
-  const lq = liqAt(g.px, g.py); g.liq = (lq && g.sp.type !== g.map.type) ? bio : null;      // los de su propio tipo son inmunes
+  const lq = liqAt(g.px, g.py), lf = lq ? liqEffect(g.sp.type, bio) : null;                  // los de su propio tipo, inmunes; los contrarios, peor
+  g.liq = lf ? bio : null; g.liqF = lf; g.liqNerf = !!(lf && lf.nerf);
   const ps = g.ps; for(const k in ps) if(ps[k] > 0) ps[k] -= dt;                    // estados que dejan los jefes
   if(ps.burn > 0){ g.hp -= 4*dt*m.armor/pb('res'); if(g.hp<=0){ endRun(); return; } }
-  const spd = g.sp.spd * m.spd * pb('spd') * ((g.liq && g.liq.eff.slow) || 1) * (ps.slow > 0 ? 0.55 : 1) * (ps.root > 0 ? 0 : 1);
-  if(g.liq && g.liq.eff.dps){ g.hp -= g.liq.eff.dps*dt*m.armor/pb('res'); if(g.hp<=0){ endRun(); return; } }
+  const spd = g.sp.spd * m.spd * pb('spd') * (lf ? lf.slow : 1) * (ps.slow > 0 ? 0.55 : 1) * (ps.root > 0 ? 0 : 1);
+  if(lf && lf.dps){ g.hp -= lf.dps*dt*m.armor/pb('res'); if(g.hp<=0){ endRun(); return; } }
   g.px += ix*spd*dt; g.py += iy*spd*dt; if(ix) g.face = ix>0?1:-1;
   for(let pass=0; pass<2; pass++) for(const o of g.near.solid){                       // los sólidos te empujan fuera
     const dx = g.px-o.x, dy = g.py-o.y, d = Math.hypot(dx,dy), mm = o.r+10;
     if(d < mm){ if(d === 0){ g.px += mm; continue; } g.px = o.x + dx/d*mm; g.py = o.y + dy/d*mm; } }
+  g.chestNear = null;                                                                    // cofres grandes: quédate cerca para abrirlos
+  for(const o of g.near.big){ if(o.dead) continue; const d = Math.hypot(g.px-o.x, g.py-o.y);
+    if(d < CHEST.bigR){ o.prog += dt; g.chestNear = o; } else o.prog = Math.max(0, o.prog - dt*0.5);
+    if(o.prog >= CHEST.bigT) openChest(o, true); }
   g.inGrass = g.near.grass.some(o => (o.x-g.px)**2 + (o.y-g.py)**2 < (o.r*0.9)**2);
   g.vis += (((g.inGrass || ps.dark > 0) ? 1 : 0) - g.vis) * Math.min(1, dt*5);
   if(g.item==='bayas') g.hp = Math.min(g.maxhp, g.hp + 1.5*dt);
@@ -815,8 +888,8 @@ function update(dt){
     for(const [k] of STATUS_COL) if(e[k] > 0) e[k] -= dt;
     if(e.burn > 0) dot(e, e.burnV*dt);
     const sm = (e.stun>0 || e.root>0) ? 0 : e.slow>0 ? (e.boss ? 0.75 : (e.slowV||0.5)) : 1, rm = reachOf(e),   // rm: alcance (violetas ×0.5, Niebla ×0.45)
-      el = e.type !== g.map.type ? liqAt(e.x, e.y) : null, lsl = (el && bio.eff.slow) || 1;
-    if(el && bio.eff.dps) dot(e, bio.eff.dps*dt);
+      lf = liqAt(e.x, e.y) ? liqEffect(e.type, bio) : null, lsl = lf ? lf.slow : 1;
+    e.liqNerf = !!(lf && lf.nerf); if(lf && lf.dps) dot(e, lf.dps*dt);
     if(e.boss && !e.enr && e.hp <= e.maxhp*0.3){ e.enr = true; g.banner = {s:`¡${e.name} se enfurece!`, t:3}; sfx.boss(); }
     const busy = e.boss ? bossStep(e, dt, dist, dx, dy) : enemyDash(e, dt, dist, dx, dy), ch = busy ? 0 : 1;      // ch: 0 si está en un aviso o embestida
     e.x += (dx/dist*e.spd*eb(e,'spd')*sm*lsl*ch*(1+wob*0.3) + e.kx)*dt; e.y += (dy/dist*e.spd*eb(e,'spd')*sm*lsl*ch*(1+wob*0.3) + e.ky)*dt;
@@ -871,7 +944,7 @@ function update(dt){
   if(g.banner){ g.banner.t -= dt; if(g.banner.t<=0) g.banner = null; }
   // cámara suave
   g.cam.x += (g.px-g.cam.x)*Math.min(1, dt*8); g.cam.y += (g.py-g.cam.y)*Math.min(1, dt*8);
-  if(g.pending.length && !g.over) openLevelUp();
+  if(g.pending.length && !g.over) openLevelUp(); else if(g.chestOffers.length && !g.over) openLevelUp(g.chestOffers.shift());
 }
 function ebul(x,y,a,s,dmg,type,life=5){ G.ebul.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,r:5,dmg,life,type}); }
 
@@ -923,7 +996,7 @@ function openLevelUp(offer){
   curOffer = offer;
   const titles = {normal:`¡Nivel ${lvl}!`, item:'¡Un objeto!', link:'¡Vínculo!'};
   const subs = {normal:'Elige una recompensa · 1 2 3', item:'Sólo puedes llevar uno' + (G.item?` (llevas: ${ITEMS[G.item].name})`:''), link:'Los movimientos unidos se lanzan a la vez y ocupan un solo hueco'};
-  $('#lTitle').textContent = titles[offer.kind]; $('#lSub').textContent = subs[offer.kind];
+  $('#lTitle').textContent = offer.chest ? (offer.big ? '¡Cofre grande!' : '¡Cofre!') : titles[offer.kind]; $('#lSub').textContent = subs[offer.kind];
   const box = $('#lCards'); box.innerHTML = '';
   offer.opts.forEach((o,i) => { const b = document.createElement('button'); b.className='card'; b.innerHTML = `<span class="k">${i+1}</span>${describe(o)}`;
     b.onclick = () => chooseOffer(o); box.appendChild(b); });
@@ -947,7 +1020,8 @@ function chooseOffer(o){
   closeLevelUp();
 }
 function closeLevelUp(){
-  G.pending.shift(); $('#ovLvl').classList.remove('on'); G.paused = false;
+  if(!(curOffer && curOffer.chest)) G.pending.shift();                      // las ofertas de cofre no consumen una subida de nivel
+  $('#ovLvl').classList.remove('on'); G.paused = false;
   if(G.pending.length) openLevelUp();
 }
 
@@ -987,11 +1061,12 @@ function draw(){
     for(const o of getChunk(i,j)) if(!o.dead && o.x > cx-90 && o.x < cx+vw+90 && o.y > cy-90 && o.y < cy+vh+90) seen.push(o);
   seen.sort((a,b) => a.y - b.y);
   for(const o of seen) if(o.k==='liquido') drawLiquid(o, bio, g.t);
-  for(const o of seen) if(o.k==='montana') drawMountain(o, bio); else if(o.k==='arbol') drawTree(o, bio, g.t); else if(o.k==='piedra') drawRock(o, bio);
+  for(const o of seen) if(o.k==='montana') drawMountain(o, bio); else if(o.k==='arbol') drawTree(o, bio, g.t); else if(o.k==='piedra') drawRock(o, bio); else if(o.k==='cofre' || o.k==='cofreg') drawChest(o, o.k==='cofreg', g.t, g);
   // gemas
   for(const gm of g.gems){ if(gm.coin){ ctx.fillStyle='#ffd93b'; ctx.beginPath(); ctx.arc(gm.x,gm.y,5,0,7); ctx.fill(); ctx.fillStyle='#b8860b'; ctx.fillRect(gm.x-1,gm.y-3,2,6); }
     else { ctx.fillStyle = gm.v>=10?'#ff6ad5':'#5ad7ff'; ctx.save(); ctx.translate(gm.x,gm.y); ctx.rotate(Math.PI/4); ctx.fillRect(-3,-3,6,6); ctx.restore(); } }
-  // avisos en el suelo: trayectoria de las embestidas y zonas de los ataques de los jefes
+  // avisos en el suelo: trayectoria de las embestidas, zonas de los ataques de los jefes y meteoritos
+  for(const m of g.meteors) if(!m.hit) drawMeteorMarker(m);
   for(const e of g.enemies){ drawTelegraph(e); if(e.ds && e.ds.ph === 'wind') drawPath(e.x, e.y, e.ds.ang, e.ds.len, e.r, clamp(e.ds.t/e.dash.wind, 0, 1), TYPES[e.type].c); }
   // enemigos
   for(const e of g.enemies){
@@ -1026,6 +1101,7 @@ function draw(){
   // tornados
   for(const tn of g.tornados){ ctx.strokeStyle = tn.col || TYPES.dragon.c; ctx.lineWidth = 3;
     for(let i=0;i<4;i++){ const rr = tn.R*(0.25+0.25*i), a = g.t*(5-i)+i; ctx.globalAlpha = Math.min(1, tn.t*2)*0.75; ctx.beginPath(); ctx.arc(tn.x,tn.y,rr,a,a+2.4); ctx.stroke(); } ctx.globalAlpha = 1; }
+  for(const m of g.meteors) if(!m.hit) drawMeteorFall(m);                  // el meteorito cayendo
   // efectos
   for(const f of g.fx){
     if(f.k==='ring'){ const k = 1-f.t/f.life; ctx.strokeStyle=f.col; ctx.globalAlpha=1-k; ctx.lineWidth=6; ctx.beginPath(); ctx.arc(f.x,f.y,f.r+(f.max-f.r)*k,0,7); ctx.stroke(); ctx.globalAlpha=1; }
@@ -1039,7 +1115,37 @@ function draw(){
     const sx = (g.px-Math.round(cx))*Z, sy = (g.py-Math.round(cy))*Z, gr = ctx.createRadialGradient(sx,sy,0,sx,sy,240*Z);
     gr.addColorStop(0, 'rgba(8,12,10,0)'); gr.addColorStop(0.4, 'rgba(8,12,10,0)'); gr.addColorStop(1, `rgba(8,12,10,${0.93*g.vis})`);
     ctx.fillStyle = gr; ctx.fillRect(0,0,cv.width,cv.height); }
+  if(g.ev){ ctx.setTransform(1,0,0,1,0,0); const SW = cv.width, SH = cv.height;           // ambiente del evento en curso
+    if(g.ev.kind === 'lluvia'){ ctx.fillStyle = 'rgba(30,80,170,0.14)'; ctx.fillRect(0,0,SW,SH); ctx.strokeStyle = 'rgba(180,215,255,0.5)'; ctx.lineWidth = 1.5; ctx.beginPath();
+      for(let i=0;i<110;i++){ const x = ((i*173) % SW + g.t*60) % SW, y = ((i*97) % SH + g.t*520) % SH; ctx.moveTo(x,y); ctx.lineTo(x-5,y+16); } ctx.stroke(); }
+    else if(g.ev.kind === 'marea'){ const a = 0.12 + 0.08*Math.sin(g.t*5), gr2 = ctx.createRadialGradient(SW/2,SH/2,Math.min(SW,SH)*0.35,SW/2,SH/2,Math.max(SW,SH)*0.75);
+      gr2.addColorStop(0,'rgba(255,40,60,0)'); gr2.addColorStop(1,`rgba(255,40,60,${a*3})`); ctx.fillStyle = gr2; ctx.fillRect(0,0,SW,SH); }
+    else if(g.ev.kind === 'fuego'){ ctx.fillStyle = 'rgba(255,90,20,0.07)'; ctx.fillRect(0,0,SW,SH); } }
   drawHUD();
+}
+function drawChest(o, big, t, g){
+  const {x,y} = o, s = big ? 1.5 : 1, w = 22*s, h = 15*s;
+  ctx.fillStyle = '#0004'; ctx.beginPath(); ctx.ellipse(x,y+h/2+2,w*0.6,4*s,0,0,7); ctx.fill();
+  if(big){ ctx.globalAlpha = 0.18 + 0.1*Math.sin(t*4); ctx.fillStyle = '#ffd93b'; ctx.beginPath(); ctx.arc(x,y,34,0,7); ctx.fill(); ctx.globalAlpha = 1; }
+  ctx.fillStyle = o.flash > 0 ? '#fff' : '#8a5a2b'; ctx.fillRect(x-w/2, y-h/2, w, h); ctx.fillStyle = o.flash > 0 ? '#fff' : '#a8703a'; ctx.fillRect(x-w/2, y-h/2, w, h*0.4);
+  ctx.fillStyle = '#ffd93b'; ctx.fillRect(x-2*s, y-h/2, 4*s, h); ctx.fillRect(x-w/2, y-h/2+h*0.4-1, w, 2); ctx.fillStyle = '#7a4b00'; ctx.fillRect(x-1.5*s, y-1*s, 3*s, 4*s);
+  if(!big) return;
+  const d = Math.hypot(g.px-x, g.py-y);
+  if(d < 230){ ctx.strokeStyle = '#ffd93b66'; ctx.lineWidth = 2; ctx.setLineDash([6,6]); ctx.beginPath(); ctx.arc(x,y,CHEST.bigR,0,7); ctx.stroke(); ctx.setLineDash([]);
+    ctx.font = 'bold 11px ui-monospace,monospace'; ctx.textAlign = 'center'; const lab = o.prog > 0 ? Math.ceil(CHEST.bigT - o.prog) + ' s' : 'Quédate cerca';
+    ctx.fillStyle = '#000'; ctx.fillText(lab, x+1, y-h/2-12); ctx.fillStyle = '#ffd93b'; ctx.fillText(lab, x, y-h/2-13); }
+  if(o.prog > 0){ ctx.strokeStyle = '#ffd93b'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(x,y,26,-Math.PI/2,-Math.PI/2 + Math.PI*2*o.prog/CHEST.bigT); ctx.stroke(); }
+}
+function drawMeteorMarker(m){                                 // el círculo del suelo que se va llenando (como los avisos de los jefes)
+  const k = clamp(m.t/METEOR.wind, 0, 1), R = METEOR.R;
+  ctx.fillStyle = 'rgba(255,60,70,0.16)'; ctx.beginPath(); ctx.arc(m.x,m.y,R,0,7); ctx.fill();
+  ctx.fillStyle = TYPES.fuego.c; ctx.globalAlpha = 0.35; ctx.beginPath(); ctx.arc(m.x,m.y,R*k,0,7); ctx.fill(); ctx.globalAlpha = 1;
+  ctx.strokeStyle = '#ff3b4a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(m.x,m.y,R,0,7); ctx.stroke();
+}
+function drawMeteorFall(m){
+  const k = clamp(m.t/METEOR.wind, 0, 1), fx = m.x + (1-k)*150, fy = m.y - (1-k)*340;
+  ctx.strokeStyle = 'rgba(255,150,40,0.7)'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(fx + 40, fy - 90); ctx.lineTo(fx,fy); ctx.stroke();
+  ctx.fillStyle = '#ffb347'; ctx.beginPath(); ctx.arc(fx,fy,11,0,7); ctx.fill(); ctx.fillStyle = '#ff5a1f'; ctx.beginPath(); ctx.arc(fx-2,fy-2,7,0,7); ctx.fill();
 }
 function drawPath(x, y, ang, len, w, k, col){                 // recorrido marcado en el suelo (embestidas)
   ctx.save(); ctx.translate(x,y); ctx.rotate(ang);
@@ -1130,8 +1236,10 @@ function drawHUD(){
   { const mt = TYPES[g.map.type]; ctx.font='bold 11px ui-monospace,monospace'; ctx.textAlign='center';
     const txt = `${g.map.name} · ${mt.n} ×${MAP_BUFF} ${TYPE_BUFF[g.map.type].label} · cambia en ${Math.ceil(g.mapT)}s`;
     ctx.fillStyle='#000'; ctx.fillText(txt,w/2+1,47); ctx.fillStyle=lighten(mt.c); ctx.fillText(txt,w/2,46); }
-  if(g.liq){ const t2 = `${g.liq.n.liq}: ${g.liq.eff.dps ? '-'+g.liq.eff.dps+' vida/s' : 'velocidad ×'+g.liq.eff.slow}`; ctx.font='bold 11px ui-monospace,monospace'; ctx.textAlign='center'; ctx.fillStyle='#000'; ctx.fillText(t2,w/2+1,63); ctx.fillStyle=g.liq.liq[1]; ctx.fillText(t2,w/2,62); }
+  if(g.liq){ const f = g.liqF, t2 = `${g.liq.n.liq}: ${f.dps ? '-'+(Math.round(f.dps*10)/10)+' vida/s' : 'velocidad ×'+(Math.round(f.slow*100)/100)}${f.nerf ? ' · ¡débil! daño ×0.8' : ''}`; ctx.font='bold 11px ui-monospace,monospace'; ctx.textAlign='center'; ctx.fillStyle='#000'; ctx.fillText(t2,w/2+1,63); ctx.fillStyle=g.liq.liq[1]; ctx.fillText(t2,w/2,62); }
   { let n = 0; for(const k in g.ps) if(g.ps[k] > 0){ const [nm, c] = PS_NAMES[k], x = 10 + n*78, y = h-108; ctx.fillStyle = c; ctx.fillRect(x,y,74,16); ctx.fillStyle = '#111'; ctx.textAlign = 'left'; ctx.font = 'bold 10px ui-monospace,monospace'; ctx.fillText(nm, x+3, y+12); n++; } }
+  if(g.ev){ const E = EVENTS[g.ev.kind], left = Math.ceil(g.ev.dur - g.ev.t); ctx.fillStyle = '#000a'; ctx.fillRect(10,56,180,18); ctx.fillStyle = E.col; ctx.fillRect(10,56,4,18);
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.font = 'bold 11px ui-monospace,monospace'; ctx.fillText(`${E.name} · ${left} s`, 20, 69); }
   if(g.vis > 0.5){ ctx.font='bold 11px ui-monospace,monospace'; ctx.textAlign='center'; ctx.fillStyle='#000'; ctx.fillText('Visión reducida · rompe la hierba',w/2+1,77); ctx.fillStyle='#bfe6a0'; ctx.fillText('Visión reducida · rompe la hierba',w/2,76); }
   ctx.textAlign='right'; ctx.font='bold 13px ui-monospace,monospace'; ctx.fillStyle='#fff';
   ctx.fillText(`Nv ${g.lvl}`, w-10, 22); ctx.fillStyle='#ffd93b'; ctx.fillText(`● ${g.coins}`, w-10, 40); ctx.fillStyle='#ccc'; ctx.fillText(`☠ ${g.kills}`, w-10, 58);
@@ -1352,6 +1460,9 @@ function panelGuide(){
     Además de movimientos hay pasivas, que mejoran sin disparar nada. Se agrupan en ramas (Agilidad, Fortaleza, Poder, Ingenio) y las opuestas se excluyen: al coger una de Agilidad ya no salen las de Fortaleza, y al coger una de Poder ya no salen las de Ingenio. Puedes llevar 4 pasivas, hasta nivel 5.
     Cada tipo es fuerte contra uno y débil contra otro (Fuego > Planta > Agua > Fuego y Eléctrico > Dragón > Sombra > Eléctrico): ×1.3 a favor y ×0.75 en contra, tanto en tus ataques como en los suyos. Los movimientos de control aplican un estado a los hostiles (puntitos de color bajo ellos): Marea los ralentiza, Raíces los inmoviliza, Estática los paraliza, Brasas los quema, Niebla reduce su alcance y Ciclón los arrastra y junta. Los legendarios resisten: ni se inmovilizan ni se paralizan.
     Los monstruos también pelean: algunos embisten (verás el recorrido marcado en el suelo antes del golpe, y se puede esquivar), los violetas (Sombra) llegan a la mitad y los disparos, tuyos y suyos, se paran contra montañas y árboles. Los legendarios repiten un guion fijo de 5 ataques de su tipo, siempre en el mismo orden y con aviso en el suelo (el nombre del ataque y el siguiente salen sobre su cabeza); al 30% de vida se enfurecen y hacen un 20% más de daño.
+    Cada 45-75 s puede saltar un evento: marea de monstruos (aparecen muchos más), lluvia de agua (buffs y nerfeos por tipo: ayuda al agua y la planta, frena al fuego) o lluvia de fuego (meteoritos: el círculo del suelo avisa dónde caen; los de fuego son inmunes). Los hostiles empiezan siendo pocos y van aumentando con el tiempo.
+    Por el mapa hay cofres pequeños (rómpelos a golpes: monedas, experiencia o un objeto) y cofres grandes (quédate cerca unos segundos mientras se llena el aro: botín grande y un objeto a elegir).
+    Los líquidos no afectan a las criaturas del tipo del mapa; a las del tipo contrario (al que ese tipo le gana) les afectan más y además les quitan un 20% de daño; al resto, el efecto normal.
     El mundo tiene obstáculos que cambian de aspecto con el mapa: montañas y árboles son sólidos e indestructibles (se rodean); las piedras son sólidas pero se rompen con tus ataques (a veces sueltan una moneda); la hierba alta se atraviesa, pero dentro reduce la visión y también se rompe; y los líquidos (lava, aguas, pantano…) dañan o ralentizan a todos menos a las criaturas del tipo del mapa. Las monedas sirven para mejoras permanentes y el Gacha.
     La música de fondo cambia con el tipo de mapa (botón «Música» del menú); si hay pistas, están generadas con IA (ACE-Step v1, licencia Apache-2.0).</p>`);
 }
