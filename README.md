@@ -1,6 +1,6 @@
 # Criaturas Survivor
 
-**Versión actual: v0.9.0** (2026-10-21). La versión se ve en el menú, en la Guía y en la esquina inferior derecha durante la partida.
+**Versión actual: v0.10.1** (2026-10-21). La versión se ve en el menú, en la Guía y en la esquina inferior derecha durante la partida.
 
 Juego de supervivencia tipo *Survivor* para el navegador: eliges un compañero, esquivas hordas, subes de nivel y mejoras tus ataques. Todo el juego es **un solo `index.html`** (canvas + JavaScript, sin dependencias ni servidor); la música de fondo son seis ficheros de audio opcionales. Proyecto de aprendizaje.
 
@@ -30,13 +30,14 @@ Abre `index.html` en el navegador o sírvelo con cualquier servidor estático (p
 | Obstáculos | Montañas y árboles (sólidos, indestructibles), piedras (sólidas, se rompen), hierba alta (reduce la visión, se rompe; aguanta la mitad que una piedra) y líquidos (dañan o ralentizan salvo al tipo del mapa); cambian de aspecto y efecto con cada mapa | `BIOME`, `getChunk()` |
 | Hostiles | 6 tipos que aparecen por tiempo. Los violetas (Sombra) tienen la mitad de alcance. Chispamurci, Magmaroca y Dracoaleta **embisten** con el recorrido marcado en el suelo (esquivable) | `ENEMY_TYPES`, `REACH`, `enemyDash()` |
 | Jefes | Un legendario tipado cada 4 minutos que repite un **guion fijo de 5 ataques** de su tipo, con aviso en el suelo antes de cada uno y el siguiente visible sobre su cabeza; al 30% de vida se enfurece (+20% de daño). Sus ondas y zonas dejan estados en ti | `BOSS_SCRIPT`, `BOSS_ATK`, `bossStep()` |
+| Megajefe | **Primordio, el Titán** a los 20 min (y cada 20): lento y enorme, con los ataques de los 6 tipos elegidos por tu distancia (cerca ondas y anillos; media abanicos, zonas y ráfagas; lejos embestidas, tornados y meteoros), descansa cada 3 ataques e invoca legendarios al 100/75/50/25% de vida. Tiene 10× la vida de un legendario, regenera un poco y **se adapta a tu daño**: con poco daño se impacienta (velocidad, daño y ataque suben) y con muchísimo gana armadura | `MEGA`, `MEGA_MOVES`, `megaPick()`, `spawnMega()` |
 | Aparición | Pocos hostiles al empezar y más con el tiempo (`spawnRate`, `spawnCap`) | `spawnRate()` |
 | Eventos | Cada 45-75 s: marea de monstruos (spawn ×2,5), lluvia de agua (buffs y nerfeos por tipo) o lluvia de fuego (meteoritos con aviso en el suelo) | `EVENTS`, `RAIN_FX`, `METEOR`, `updateEvents()` |
 | Cofres | Pequeños (se rompen a golpes: monedas, experiencia u objeto) y grandes (quédate cerca 6 s: botín grande y objeto garantizado) | `CHEST`, `openChest()` |
 | Líquidos | El tipo del mapa es inmune; el contrario sufre ×1,5 y hace un 20% menos de daño; el resto, efecto normal | `liqEffect()` |
 | Disparos | Los proyectiles, tuyos y enemigos, se paran contra montañas y árboles (no contra piedras) | `update()` |
 | Música | Una pista chillout por tipo de mapa con fundido cruzado de 3 s y botón «Música» | `music/`, `playMusic()` |
-| Criaturario | Enciclopedia de 18 criaturas y 6 mapas que se desbloquean al descubrirlos | `DEX`, `DESC` |
+| Criaturario | Enciclopedia de 19 criaturas (incluido el Titán) y 6 mapas que se desbloquean al descubrirlos | `DEX`, `DESC` |
 | Progreso | Monedas → mejoras permanentes y Gacha; todo se guarda en `localStorage` | `UPGRADES`, `SAVE` |
 | Gacha | Tragamonedas retro baja y ancha (320×108) que **sólo se despliega al tirar**, **sólo visual**: criatura · tipo · desenlace (NEW / ✨ / +40); la tirada ya está decidida al girar | `gachaRoll()`, `slotSpin()`, `slotDraw()` |
 
@@ -46,7 +47,7 @@ index.html                 el juego completo (secciones comentadas, ver abajo)
 music/                     6 pistas <tipo>.mp3 (fuera de Git; se regeneran con la IA local)
 scripts/smoke.js           prueba en Node con DOM y audio falsos (12 min simulados + aserciones exactas)
 scripts/audit-secrets.sh   auditoría de secretos antes de cada commit
-scripts/sync-dashboard.sh  copia index.html y music/ a la demo servida por el homelab (simula; --apply)
+scripts/sync-dashboard.sh  copia index.html y music/ al homelab: --test = versión de prueba; sin --test = demo y pública (simula; --apply)
 scripts/capturas.sh         capturas de pantalla con Chromium sin pantalla (Playwright en Docker; PNG en capturas/, fuera de Git)
 scripts/generar_musica.sh  genera las 6 pistas con ACE-Step en el ComfyUI del PC (simula; --apply)
 rules/                     reglas del proyecto (una por fichero)
@@ -80,7 +81,7 @@ bash scripts/generar_musica.sh --apply             # genera las 6 (~3 min); tamb
 Necesita ComfyUI arrancado en el PC (`creacion-local`). Cada pista se anota en el catálogo de `musica-ia-lofi` (regla 001 de ese repo). Todas comparten tonalidad (La menor) y tempos de 65–85 bpm para que el fundido entre mapas no choque. Si falta un fichero, ese mapa va sin música.
 
 ## Publicación (homelab)
-Hay dos copias servidas por contenedores nginx de solo lectura en `dashboard-stack`: una demo tras el panel de acceso y una versión pública sin login. Ambas se actualizan con `scripts/sync-dashboard.sh --apply` (copia `index.html` y `music/`). El servidor debe permitir audio: el CSP lleva `media-src 'self'`. Detalles de despliegue en el repo `dashboard-stack`.
+Hay tres entornos servidos por contenedores nginx de solo lectura en `dashboard-stack`: una **versión de prueba** (sin caché, accesible desde el panel de acceso), una **demo** tras el panel de acceso y una **versión pública** sin login. El flujo es probar primero (`scripts/sync-dashboard.sh --test --apply`) y, sólo cuando se aprueba, sincronizar la demo y la pública con `scripts/sync-dashboard.sh --apply` (ambas copian `index.html` y `music/`). El servidor debe permitir audio: el CSP lleva `media-src 'self'`. Detalles de despliegue en el repo `dashboard-stack`.
 
 ## Versionado
 `0.x.0` por cada mejora (la 0.1.0 es la primera versión) y `0.x.y` para correcciones. Al subir de versión se cambian a la vez `VERSION` y `VERSION_DATE` en `index.html` y el primer encabezado de `CHANGELOG.md`; `smoke.js` falla si no coinciden (regla 003).
@@ -93,4 +94,4 @@ Hay dos copias servidas por contenedores nginx de solo lectura en `dashboard-sta
 Ver [`rules/README.md`](rules/README.md): 001 sin assets oficiales · 002 música de IA declarada y anotada · 003 versión coherente con el CHANGELOG.
 
 ## Estado y pendientes
-Jugable y en mejora continua (v0.9.0). Pendiente: probar a mano en un navegador real (rendimiento con muchos objetos, atascos entre obstáculos), afinar el equilibrio (la subida de nivel es muy rápida), subir el repo a GitHub (privado) y añadir un monitor de disponibilidad en el homelab. Ver `memory.md`.
+Jugable y en mejora continua (v0.10.1). Pendiente: probar a mano en un navegador real (rendimiento con muchos objetos, atascos entre obstáculos), afinar el equilibrio (la subida de nivel es muy rápida), subir el repo a GitHub (privado) y añadir un monitor de disponibilidad en el homelab. Ver `memory.md`.

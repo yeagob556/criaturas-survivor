@@ -110,7 +110,7 @@ const fmtT = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(Mat
 
 /* ---------- 1. DATOS ---------- */
 // Versión visible en el menú, la Guía y la esquina del juego. Debe coincidir con el último encabezado de CHANGELOG.md (lo comprueba scripts/smoke.js).
-const VERSION = '0.9.0', VERSION_DATE = '2026-10-21';
+const VERSION = '0.10.1', VERSION_DATE = '2026-10-21';
 const TYPES = {
   fuego:{n:'Fuego',c:'#ff7a3d',h:18}, agua:{n:'Agua',c:'#4aa8ff',h:205}, planta:{n:'Planta',c:'#5fcf6a',h:120},
   electrico:{n:'Eléctrico',c:'#ffd93b',h:50}, sombra:{n:'Sombra',c:'#8a5cc2',h:270}, dragon:{n:'Dragón',c:'#4f6bff',h:230}
@@ -274,6 +274,7 @@ const DESC = {
   'leg-electrico':'Cabalga las tormentas. Cada paso suyo es un trueno.',
   'leg-sombra':'Habita las ruinas olvidadas. Su silueta se come la luz a su alrededor.',
   'leg-dragon':'Señor de las cumbres. Su rugido se oye en tres montañas.',
+  mega:'Primordio, el Titán: nació antes que los tipos y los lleva todos dentro. Lento como una montaña, cambia de color según el ataque que prepara y llama a los legendarios cuando se enfada.',
 };
 // Monstruos: alcance propio por tipo (los violetas, de tipo Sombra, llegan a la mitad; Niebla lo reduce aún más y se multiplican).
 const REACH = {sombra:0.5};
@@ -292,6 +293,8 @@ const BOSS_ATK = {
   dash:    {wind:1.1, len:300, spd:460, dmg:22},             // embestida por una trayectoria marcada
   tornado: {wind:1.0, R:80, dur:2.8, dmg:6},                 // tornado que te arrastra
   rest:    {wind:1.4},                                       // descanso: el momento de atacarle
+  summon:  {wind:1.6},                                       // portal en el suelo del que sale un legendario (sólo el megajefe)
+  rain:    {wind:0.7, n:7, dmg:22},                          // lluvia de meteoros marcados en el suelo (sólo el megajefe)
 };
 const BOSS_SCRIPT = {
   fuego:    [['fan','Ascuas'], ['fan','Ascuas'], ['zone','Brasas'], ['dash','Cometa'], ['rest','Descanso']],
@@ -301,10 +304,28 @@ const BOSS_SCRIPT = {
   sombra:   [['ring','Tinieblas'], ['fan','Zarpazo'], ['pulse','Niebla'], ['fan','Zarpazo'], ['rest','Descanso']],
   dragon:   [['fan','Dracoaliento'], ['fan','Dracoaliento'], ['tornado','Ciclón'], ['ring','Dracoaliento Máx'], ['rest','Descanso']],
 };
+// Megajefe «Primordio, el Titán»: a los 20 min y luego cada 20. Lento y enorme, con TODOS los ataques de los 6 tipos, que elige por tu
+// distancia (cerca → ondas y anillos; media → abanicos, zonas y ráfagas; lejos → embestidas, tornados y meteoros) rotando en orden fijo,
+// y con descanso cada 3 ataques. Invoca legendarios (rotando por los 6 tipos) al empezar y al bajar del 75%, 50% y 25% de vida.
+// Vida: 10 veces la de un legendario normal de ese momento (y +50% por cada Titán anterior), con una regeneración muy pequeña. Se adapta a ti:
+// si le haces poco daño (<low × lo necesario para matarlo en killTime s) se impacienta poco a poco (+velocidad, +daño, +cadencia, hasta aggSpd/
+// aggDmg/aggRate); si le haces muchísimo (>high ×) gana armadura (hasta armorMax) para aguantar. Mide el daño con una media de win segundos y no
+// se adapta durante los primeros grace segundos.
+const MEGA = {first:1200, every:1200, hpMul:10, hpPerTitan:0.5, regen:0.001, spd:28, r:58, dmg:30, close:200, far:420, maxMinions:2, summonEvery:45,
+  minionHp:2500, minionHpPerSec:2, rest:3, dash:{len:380, spd:340},
+  killTime:150, win:8, grace:20, low:0.5, high:1.5, aggRise:90, aggFall:60, aggSpd:0.4, aggDmg:0.25, aggRate:0.3, armorSlope:0.15, armorMax:0.5};
+const bossHp = (t, n) => 900 + n*900 + t*2;                 // vida de un legendario normal en el instante t (n = número de legendarios ya aparecidos incluido él)
+const MEGA_BAND_OF = {pulse:'close', ring:'close', fan:'mid', zone:'mid', burst:'mid', dash:'far', tornado:'far', rain:'far'};
+const MEGA_BAND_NAME = {close:'Cerca', mid:'Media distancia', far:'Lejos'};
+const MEGA_MOVES = (() => { const m = {close:[], mid:[], far:[]};                       // el repertorio sale de los guiones de los 6 tipos
+  for(const t of Object.keys(BOSS_SCRIPT)) for(const [k, n] of BOSS_SCRIPT[t]) if(k !== 'rest') m[MEGA_BAND_OF[k]].push([k, n, t]);
+  m.far.push(['rain', 'Lluvia de meteoros', 'fuego']); return m; })();
+const MEGA_T = {n:'Todos los tipos', c:'#ffffff', h:300};
 const DEX = [
   ...SPECIES.map(x => ({id:x.id, name:x.name, type:x.type, role:'Compañero', seed:x.seed, hp:x.hp, spd:x.spd, note:'Empieza con '+MOVES[x.move].name})),
   ...ENEMY_TYPES.map(x => ({id:x.id, name:x.name, type:x.type, role:'Hostil', seed:x.seed, hue:x.hue, hp:x.hp, spd:x.spd, note:'Aparece desde '+Math.floor(x.from/60)+' min'+(x.dash?' · Embiste':'')+(x.shoots?' · Dispara':'')+(REACH[x.type]?' · Alcance a la mitad':'')})),
   ...Object.keys(LEG).map(t => ({id:'leg-'+t, name:LEG[t].name, type:t, role:'Legendario', seed:LEG[t].seed, hue:TYPES[t].h, hp:900, spd:42, big:true, note:'Jefe cada 4 minutos · '+BOSS_SCRIPT[t].filter(z => z[0]!=='rest').map(z => z[1]).filter((v,i,a) => a.indexOf(v)===i).join(', ')})),
+  {id:'mega', name:'Primordio', type:'primordio', role:'Titán', seed:99, hue:300, big:true, grid:14, hp:'10× un legendario', spd:MEGA.spd, note:'Aparece a los 20 min y luego cada 20 · Usa los ataques de los 6 tipos según tu distancia · Invoca legendarios'},
 ];
 
 /* ---------- 2. GUARDADO ---------- */
@@ -458,6 +479,7 @@ function newRun(){
     px:0, py:0, face:1, inv:0, maxhp:0, hp:0, spdBonus:1, magBonus:1, dmgBonus:1,
     map:null, mapT:MAP_EVERY, newDisc:[], baseMax:0, lvl:1, xp:0, pending:[], kills:0, coins:0, rerolls:1, item:null, pas:{}, tornados:[], ps:{slow:0, root:0, burn:0, dark:0}, seed:(Math.random()*2147483647)|0, chunks:new Map(), broken:new Set(),
     near:{solid:[],dest:[],liq:[],grass:[],big:[]}, vis:0, liq:null, liqF:null, liqNerf:false,
+    mega:null, megaN:0, nextMega:MEGA.first, megaWarn:false,
     ev:null, evT:rnd(EV_FIRST[0], EV_FIRST[1]), evLast:null, meteors:[], chestOffers:[], chestNear:null,
     moves:[{id:sp.move, lvl:1, t:0.3, links:[]}],   // cada elemento = un hueco; links = movimientos unidos (Vínculo)
     sel:0, enemies:[], proj:[], ebul:[], gems:[], fx:[], txt:[], spawnAcc:0, nextBoss:180, bossN:0, banner:null, orbAng:0, cam:{x:0,y:0},
@@ -579,7 +601,7 @@ function meteorHit(m){
   const g = G, R = METEOR.R;
   g.fx.push({k:'ring', x:m.x, y:m.y, r:8, max:R, life:0.45, t:0.45, col:TYPES.fuego.c}); beep(90,0.3,'sawtooth',0.06,-40);
   if(g.sp.type !== 'fuego' && Math.hypot(g.px-m.x, g.py-m.y) < R + 10) playerHit(METEOR.dmg, 'fuego');       // las criaturas de fuego son inmunes
-  for(const e of g.enemies) if(e.type !== 'fuego' && !e.dead && Math.hypot(e.x-m.x, e.y-m.y) < R + e.r) hurt(e, METEOR.dmg*1.5, 'fuego', true);
+  if(!m.foe) for(const e of g.enemies) if(e.type !== 'fuego' && !e.dead && Math.hypot(e.x-m.x, e.y-m.y) < R + e.r) hurt(e, METEOR.dmg*1.5, 'fuego', true);   // los meteoros de un jefe no dañan a los suyos
   hitArea(m.x, m.y, R, 60);                                  // un impacto rompe de golpe piedras (45), hierba y cofres pequeños
 }
 function updateEvents(dt){
@@ -601,9 +623,47 @@ function spawnBoss(bt, x, y, hp){
     bs:{i:-1, cycle:-1, ph:'rec', t:-1.5, kind:null, name:'', label:'', tg:null, fired:0, ang:0, hit:false}};   // empieza descansando 1,5 s
   G.enemies.push(e); syncEnemy(e); return e;
 }
-const bossMul = e => e.enr ? 1.2 : 1;                       // enfurecido (<=30% de vida): +20% de daño
-function hitPlayerFx(e, d){                                 // ataque de área de un jefe: daño + estado según su tipo
-  playerHit(d*bossMul(e)*eb(e,'dmg'), e.type); const f = PS_FX[e.type]; if(f) G.ps[f.k] = Math.max(G.ps[f.k], f.t);
+const minionsAlive = () => G.enemies.filter(e => e.minion && !e.dead).length;
+function spawnMega(){
+  const g = G, a = rnd(0, Math.PI*2), dist = Math.max(W, H)/Z/2 + 140, hp = MEGA.hpMul * bossHp(g.t, g.bossN + 1) * (1 + MEGA.hpPerTitan*g.megaN);
+  const e = {id:'mega', name:'Primordio', type:'primordio', boss:true, mega:true, ad:{log:0, dps:0, agg:0, armor:0, t:0}, hp, maxhp:hp, spd:MEGA.spd, dmg:MEGA.dmg, r:MEGA.r, hue:TYPES.dragon.h, seed:99, xp:100,
+    hpBuf:1, rBuf:1, x:g.px + Math.cos(a)*dist, y:g.py + Math.sin(a)*dist, kx:0, ky:0, flash:0, orbT:0, shootT:9, ph:0,
+    bs:{i:-1, cycle:0, ph:'rec', t:-2.5, kind:null, name:'', label:'', tg:null, fired:0, ang:0, hit:false, atk:'dragon',
+        summon:1, lastSummon:g.t, thr:[0.75, 0.5, 0.25], cnt:{close:0, mid:0, far:0}, combo:0, sumI:0}};      // empieza invocando a su primer legendario
+  g.enemies.push(e); g.mega = e; g.megaN++; g.nextMega = Infinity; g.megaWarn = true;
+  g.banner = {s:'¡PRIMORDIO, EL TITÁN, DESPIERTA!', t:5}; sfx.boss(); g.fx.push({k:'mapflash', life:1, t:1, col:'#ffffff'});
+  return e;
+}
+const megaBand = d => d < MEGA.close ? 'close' : d > MEGA.far ? 'far' : 'mid';
+function megaWatch(e){                                     // invocaciones pendientes: al bajar de vida y si lleva mucho sin invocar
+  const b = e.bs, f = e.hp/e.maxhp;
+  while(b.thr.length && f <= b.thr[0]){ b.thr.shift(); b.summon += 2; }
+  if(!b.summon && G.t - b.lastSummon > MEGA.summonEvery && minionsAlive() === 0) b.summon = 1;
+}
+function megaPick(e, dist, peek){                          // el siguiente ataque del Titán: invocar > descansar > según tu distancia (peek: sólo mirar)
+  const b = e.bs, order = Object.keys(TYPES);
+  if(b.summon > 0 && minionsAlive() < MEGA.maxMinions){ const t = order[b.sumI % order.length];
+    if(!peek){ b.summon--; b.sumI++; b.lastSummon = G.t; b.combo = 0; } return ['summon', 'Invocar a ' + LEG[t].name, t]; }
+  if(b.combo >= MEGA.rest){ if(!peek) b.combo = 0; return ['rest', 'Descanso', e.type]; }
+  const band = megaBand(dist), list = MEGA_MOVES[band], st = list[b.cnt[band] % list.length];
+  if(!peek){ b.cnt[band]++; b.combo++; }
+  return st;
+}
+// Adaptación del Titán: mide el daño que recibe (sin armadura) y sube su impaciencia o su armadura; regenera un poco.
+const megaK = e => { const a = e.ad.agg; return {spd:1 + MEGA.aggSpd*a, dmg:1 + MEGA.aggDmg*a, rate:1 + MEGA.aggRate*a}; };
+function megaAdapt(e, dt){
+  const a = e.ad; a.t += dt;
+  a.dps += (a.log/dt - a.dps) * Math.min(1, dt/MEGA.win); a.log = 0;                  // media móvil del daño por segundo que le haces
+  if(e.hp > 0) e.hp = Math.min(e.maxhp, e.hp + e.maxhp*MEGA.regen*dt);               // regeneración muy pequeña
+  if(a.t < MEGA.grace) return;
+  const ratio = a.dps / (e.maxhp/MEGA.killTime);
+  a.agg = clamp(a.agg + (ratio < MEGA.low ? dt/MEGA.aggRise : -dt/MEGA.aggFall), 0, 1);                                      // poco daño → se impacienta
+  const objetivo = clamp((ratio - MEGA.high)*MEGA.armorSlope, 0, MEGA.armorMax); a.armor += (objetivo - a.armor)*Math.min(1, dt*0.25);   // mucho daño → armadura
+  e.spd = MEGA.spd*megaK(e).spd;
+}
+const bossMul = e => (e.enr ? 1.2 : 1) * (e.mega ? megaK(e).dmg : 1);                       // enfurecido (<=30% de vida): +20% de daño
+function hitPlayerFx(e, d, T = e.type){                         // ataque de área de un jefe: daño + estado según el tipo del ataque
+  playerHit(d*bossMul(e)*eb(e,'dmg'), T); const f = PS_FX[T]; if(f) G.ps[f.k] = Math.max(G.ps[f.k], f.t);
 }
 function enemyDash(e, dt, dist, dx, dy){                   // embestida con aviso en el suelo; true si el hostil está ocupado con ella
   const d = e.dash; if(!d) return false;
@@ -617,7 +677,8 @@ function enemyDash(e, dt, dist, dx, dy){                   // embestida con avis
   if(s.t >= 0.6){ e.ds = null; e.dcd = d.cd; } return true;                       // 0,6 s parado tras la embestida
 }
 function startBossStep(e, step){
-  const b = e.bs, [kind, name] = step, A = BOSS_ATK[kind], rf = reachOf(e);
+  const b = e.bs, [kind, name, atk] = step, A = BOSS_ATK[kind], rf = reachOf(e);
+  b.atk = atk || e.type; if(e.mega) e.hue = TYPES[b.atk].h;            // el Titán cambia de color según el tipo del ataque
   b.kind = kind; b.name = name; b.t = 0; b.fired = 0; b.hit = false; b.label = name; b.tg = null; b.ph = kind === 'rest' ? 'rest' : 'wind';
   b.ang = Math.atan2(G.py - e.y, G.px - e.x);               // se fija al empezar el aviso: moverse a tiempo lo esquiva
   if(kind === 'rest') return;
@@ -625,26 +686,34 @@ function startBossStep(e, step){
   if(kind === 'fan') tg.spread = A.spread;
   if(kind === 'pulse') tg.R = A.R*rf;
   if(kind === 'ring') tg.R = 70;
-  if(kind === 'dash') tg.len = A.len*rf;
-  if(kind === 'zone'){ const cnt = e.type === 'electrico' ? 3 : 1; tg.list = []; for(let i=0;i<cnt;i++) tg.list.push({x:G.px + (i ? rnd(-110,110) : 0), y:G.py + (i ? rnd(-110,110) : 0), R:A.R}); }
-  if(kind === 'tornado') tg.list = [{x:G.px, y:G.py, R:A.R}];
+  if(kind === 'dash') tg.len = (e.mega ? MEGA.dash.len : A.len)*rf;
+  if(kind === 'zone'){ const cnt = b.atk === 'electrico' ? 3 : 1; tg.list = []; for(let i=0;i<cnt;i++) tg.list.push({x:G.px + (i ? rnd(-110,110) : 0), y:G.py + (i ? rnd(-110,110) : 0), R:A.R}); }
+  if(kind === 'tornado'){ tg.list = [{x:G.px, y:G.py, R:A.R*(e.mega ? 1.5 : 1)}]; if(e.mega) tg.list.push({x:G.px + rnd(-150,150), y:G.py + rnd(-150,150), R:A.R*1.2}); }
+  if(kind === 'summon'){ const a = rnd(0, Math.PI*2); tg.list = [{x:e.x + Math.cos(a)*170, y:e.y + Math.sin(a)*170, R:46}]; }
+  if(kind === 'rain'){ for(let i=0;i<A.n;i++){ const near = i === 0, a = rnd(0, Math.PI*2), d = rnd(40, 230);          // los meteoros se avisan solos: el primero donde estás
+    G.meteors.push({x:near ? G.px : G.px + Math.cos(a)*d, y:near ? G.py : G.py + Math.sin(a)*d, t:-i*0.28, hit:false, foe:true}); } }
   b.tg = tg;
 }
 function bossAct(e){                                        // el aviso terminó: el ataque sale
-  const b = e.bs, A = BOSS_ATK[b.kind], tg = b.tg, g = G, rf = reachOf(e), col = TYPES[e.type].c, dm = A.dmg*bossMul(e)*eb(e,'dmg');
+  const b = e.bs, A = BOSS_ATK[b.kind], tg = b.tg, g = G, rf = reachOf(e), T = b.atk, col = TYPES[T].c, dm = (A.dmg || 0)*bossMul(e)*eb(e,'dmg');
   switch(b.kind){
-    case 'fan': for(let i=0;i<A.n;i++) ebul(e.x, e.y, b.ang + (i-(A.n-1)/2)*A.spread/(A.n-1), A.spd, dm, e.type, 3.5*rf); beep(260,0.12,'sawtooth',0.03,-100); break;
-    case 'ring': { const off = (b.cycle % 2)*Math.PI/A.n; for(let i=0;i<A.n;i++) ebul(e.x, e.y, off + i*Math.PI*2/A.n, A.spd, dm, e.type, 4*rf); beep(200,0.15,'sawtooth',0.03,-60); break; }
-    case 'pulse': if(Math.hypot(g.px-e.x, g.py-e.y) < tg.R) hitPlayerFx(e, A.dmg);
+    case 'fan': for(let i=0;i<A.n;i++) ebul(e.x, e.y, b.ang + (i-(A.n-1)/2)*A.spread/(A.n-1), A.spd, dm, T, 3.5*rf); beep(260,0.12,'sawtooth',0.03,-100); break;
+    case 'ring': { const off = (b.cycle % 2)*Math.PI/A.n; for(let i=0;i<A.n;i++) ebul(e.x, e.y, off + i*Math.PI*2/A.n, A.spd, dm, T, 4*rf); beep(200,0.15,'sawtooth',0.03,-60); break; }
+    case 'pulse': if(Math.hypot(g.px-e.x, g.py-e.y) < tg.R) hitPlayerFx(e, A.dmg, T);
       g.fx.push({k:'ring', x:e.x, y:e.y, r:10, max:tg.R, life:0.4, t:0.4, col}); beep(150,0.2,'sine',0.04,-30); break;
-    case 'zone': for(const z of tg.list){ if(Math.hypot(g.px-z.x, g.py-z.y) < z.R) hitPlayerFx(e, A.dmg);
-      g.fx.push({k:'ring', x:z.x, y:z.y, r:4, max:z.R, life:0.35, t:0.35, col}); if(e.type === 'electrico') g.fx.push({k:'bolt', x:z.x, y:z.y, life:0.2, t:0.2, col}); } beep(300,0.1,'square',0.03,-150); break;
-    case 'tornado': { const z = tg.list[0]; g.tornados.push({x:z.x, y:z.y, R:z.R, t:A.dur, life:A.dur, d:A.dmg*bossMul(e), tick:0, foe:true, col:'#ff6a7d'}); beep(120,0.25,'sawtooth',0.03,80); break; }
+    case 'zone': for(const z of tg.list){ if(Math.hypot(g.px-z.x, g.py-z.y) < z.R) hitPlayerFx(e, A.dmg, T);
+      g.fx.push({k:'ring', x:z.x, y:z.y, r:4, max:z.R, life:0.35, t:0.35, col}); if(T === 'electrico') g.fx.push({k:'bolt', x:z.x, y:z.y, life:0.2, t:0.2, col}); } beep(300,0.1,'square',0.03,-150); break;
+    case 'tornado': for(const z of tg.list) g.tornados.push({x:z.x, y:z.y, R:z.R, t:A.dur, life:A.dur, d:A.dmg*bossMul(e), tick:0, foe:true, col:'#ff6a7d'}); beep(120,0.25,'sawtooth',0.03,80); break;
+    case 'summon': for(const z of tg.list){ const m = spawnBoss(T, z.x, z.y, MEGA.minionHp + g.t*MEGA.minionHpPerSec); m.minion = true; m.disc = true;
+      g.fx.push({k:'ring', x:z.x, y:z.y, r:6, max:z.R + 20, life:0.5, t:0.5, col}); } g.banner = {s:`¡Primordio invoca a ${LEG[T].name}!`, t:3}; beep(90,0.4,'sawtooth',0.06,40); break;
+    case 'rain': break;                                       // los meteoros ya están en el aire desde el aviso
   }
 }
 function bossStep(e, dt, dist, dx, dy){                    // guion del jefe; true si está plantado (aviso, ataque) y no persigue
   const b = e.bs, sc = BOSS_SCRIPT[e.type], A = BOSS_ATK[b.kind] || {}, rf = reachOf(e);
-  b.t += dt;
+  b.t += dt * (e.mega ? megaK(e).rate : 1);                  // impaciente → prepara y encadena los ataques más deprisa
+  if(b.ph === 'rec' && e.mega){ megaWatch(e); const nx = megaPick(e, dist, true); b.label = MEGA_BAND_NAME[megaBand(dist)] + ' → ' + nx[1];
+    if(b.t >= 0) startBossStep(e, megaPick(e, dist, false)); return false; }
   if(b.ph === 'rec'){ b.label = 'Próximo: ' + sc[(b.i+1) % sc.length][1];
     if(b.t >= 0){ b.i = (b.i+1) % sc.length; if(b.i === 0) b.cycle++; startBossStep(e, sc[b.i]); } return false; }
   if(b.ph === 'rest'){ if(b.t >= A.wind){ b.ph = 'rec'; b.t = 0; } return false; }
@@ -652,8 +721,8 @@ function bossStep(e, dt, dist, dx, dy){                    // guion del jefe; tr
   // fase 'act'
   if(b.kind === 'burst'){ while(b.fired < A.n && b.t >= b.fired*A.gap){ ebul(e.x, e.y, b.ang, A.spd, A.dmg*bossMul(e)*eb(e,'dmg'), e.type, 3.5*rf); b.fired++; beep(380,0.06,'triangle',0.025,120); }
     if(b.t >= A.n*A.gap + 0.2){ b.ph = 'rec'; b.t = -0.5; } return true; }
-  if(b.kind === 'dash'){ const L = A.len*rf, T = L/A.spd;
-    if(b.t <= T){ e.x += Math.cos(b.ang)*A.spd*dt; e.y += Math.sin(b.ang)*A.spd*dt;
+  if(b.kind === 'dash'){ const DA = e.mega ? MEGA.dash : A, vel = DA.spd*(e.mega ? megaK(e).spd : 1), L = DA.len*rf, T = L/vel;
+    if(b.t <= T){ e.x += Math.cos(b.ang)*vel*dt; e.y += Math.sin(b.ang)*vel*dt;
       if(!b.hit && dist < e.r + 12){ b.hit = true; playerHit(A.dmg*bossMul(e)*eb(e,'dmg'), e.type); } }
     if(b.t >= T + 0.3){ b.ph = 'rec'; b.t = -0.5; b.tg = null; } return true; }
   if(b.t >= 0.35){ b.ph = 'rec'; b.t = -0.5; } return true;
@@ -788,6 +857,7 @@ function hurt(e, d, mt, quiet){
   if(mt === undefined) mt = curMT;
   const ef = eff(mt, e.type); d *= ef;
   const crit = pl('critico') > 0 && Math.random() < 0.06*pl('critico'); if(crit) d *= 2;
+  if(e.mega){ e.ad.log += d; d *= 1 - e.ad.armor; }                                   // el Titán mide el daño bruto y se protege con armadura
   e.hp -= d/eb(e,'res'); e.flash = 0.1;
   if(!quiet){ sfx.hit();
     if(G.txt.length<40) G.txt.push({x:e.x+rnd(-6,6),y:e.y-e.r,s:String(Math.round(d))+(crit?'!':'')+(ef>1?'↑':ef<1?'↓':''),t:0.5,c:ef>1?'#ffd93b':ef<1?'#9ab':null}); }
@@ -804,6 +874,12 @@ function kill(e){
   const m = mult();
   if(e.boss){ for(let i=0;i<8;i++) G.gems.push({x:e.x+rnd(-30,30),y:e.y+rnd(-30,30),v:0,coin:true,c:Math.ceil(5*m.coin)}); }
   else if(Math.random() < 0.07*m.coin) G.gems.push({x:e.x+rnd(-8,8),y:e.y+rnd(-8,8),v:0,coin:true,c:1});
+  if(e.mega){                                                                  // ¡Titán derrotado!: gran botín, caen sus legendarios y vuelve a los 20 min
+    G.mega = null; G.nextMega = G.t + MEGA.every; G.megaWarn = false; G.nextBoss = Math.max(G.nextBoss, G.t + 60); SAVE.stats.titans = (SAVE.stats.titans || 0) + 1; persist();
+    for(let i=0;i<30;i++) G.gems.push({x:e.x+rnd(-90,90), y:e.y+rnd(-90,90), v:0, coin:true, c:Math.ceil(5*m.coin)});
+    for(let i=0;i<8;i++) G.gems.push({x:e.x+rnd(-90,90), y:e.y+rnd(-90,90), v:30, coin:false});
+    for(const o of G.enemies) if(o.minion && !o.dead) kill(o);
+    G.banner = {s:'¡Primordio, el Titán, ha caído!', t:5}; sfx.boss(); }
 }
 
 function spawn(dt){
@@ -820,9 +896,11 @@ function spawn(dt){
     const sc = 1 + t/110;
     G.enemies.push({...et, x:G.px+Math.cos(a)*dist, y:G.py+Math.sin(a)*dist, hp:et.hp*sc, maxhp:et.hp*sc, kx:0,ky:0, flash:0, orbT:0, shootT:rnd(1,3), ph:rnd(0,6.28), hpBuf:1, rBuf:1, dcd:et.dash ? rnd(1.5, et.dash.cd) : 0, ds:null}); syncEnemy(G.enemies[G.enemies.length-1]);
   }
-  if(t >= G.nextBoss){
+  if(!G.megaWarn && t >= G.nextMega - 10 && !G.mega){ G.megaWarn = true; G.banner = {s:'Algo enorme se acerca…', t:4}; sfx.boss(); }
+  if(t >= G.nextMega && !G.mega) spawnMega();
+  if(t >= G.nextBoss && !G.mega){                       // mientras el megajefe vive no salen legendarios normales
     G.nextBoss += 240; G.bossN++; const bt = pick(Object.keys(TYPES));
-    const a = rnd(0,Math.PI*2), dist = Math.max(W,H)/Z/2 + 80, hp = 900 + G.bossN*900 + t*2;
+    const a = rnd(0,Math.PI*2), dist = Math.max(W,H)/Z/2 + 80, hp = bossHp(t, G.bossN);
     spawnBoss(bt, G.px+Math.cos(a)*dist, G.py+Math.sin(a)*dist, hp);
     G.banner = {s:'¡'+LEG[bt].name+' se acerca!', t:3}; sfx.boss();
   }
@@ -890,6 +968,7 @@ function update(dt){
     const sm = (e.stun>0 || e.root>0) ? 0 : e.slow>0 ? (e.boss ? 0.75 : (e.slowV||0.5)) : 1, rm = reachOf(e),   // rm: alcance (violetas ×0.5, Niebla ×0.45)
       lf = liqAt(e.x, e.y) ? liqEffect(e.type, bio) : null, lsl = lf ? lf.slow : 1;
     e.liqNerf = !!(lf && lf.nerf); if(lf && lf.dps) dot(e, lf.dps*dt);
+    if(e.mega){ e.kx = 0; e.ky = 0; megaAdapt(e, dt); }                        // el Titán no se mueve por empujones y se adapta a ti
     if(e.boss && !e.enr && e.hp <= e.maxhp*0.3){ e.enr = true; g.banner = {s:`¡${e.name} se enfurece!`, t:3}; sfx.boss(); }
     const busy = e.boss ? bossStep(e, dt, dist, dx, dy) : enemyDash(e, dt, dist, dx, dy), ch = busy ? 0 : 1;      // ch: 0 si está en un aviso o embestida
     e.x += (dx/dist*e.spd*eb(e,'spd')*sm*lsl*ch*(1+wob*0.3) + e.kx)*dt; e.y += (dy/dist*e.spd*eb(e,'spd')*sm*lsl*ch*(1+wob*0.3) + e.ky)*dt;
@@ -910,7 +989,7 @@ function update(dt){
       if(dist < tn.R*1.8){ if(dist > 8){ g.px += dx/dist*85*dt; g.py += dy/dist*85*dt; } if(hit && dist < tn.R) playerHit(tn.d, 'dragon'); } continue; }
     for(const e of g.enemies){ const dx = tn.x-e.x, dy = tn.y-e.y, dist = Math.hypot(dx,dy);
       if(dist > tn.R*1.8) continue;
-      if(dist > 8){ const pull = e.boss ? 60 : 210; e.x += dx/dist*pull*dt; e.y += dy/dist*pull*dt; }
+      if(dist > 8){ const pull = e.mega ? 12 : e.boss ? 60 : 210; e.x += dx/dist*pull*dt; e.y += dy/dist*pull*dt; }
       if(hit && dist < tn.R) hurt(e, tn.d*0.5, 'dragon', true); } }
   g.tornados = g.tornados.filter(t => t.t>0);
   // proyectiles propios
@@ -935,7 +1014,8 @@ function update(dt){
     if(d < R || gm.pull){ gm.pull = gm.pull || d<R; const s = 320; gm.x += dx/(d||1)*s*dt; gm.y += dy/(d||1)*s*dt; }
     if(d < 14){ gm.got = true; if(gm.coin){ g.coins += gm.c; beep(1200,0.05,'triangle',0.03); } else { addXP(gm.v); sfx.gem(); } } }
   // limpieza
-  g.enemies = g.enemies.filter(e => !e.dead && (e.x-g.px)**2+(e.y-g.py)**2 < 1400*1400);
+  g.enemies = g.enemies.filter(e => !e.dead && (e.mega || (e.x-g.px)**2+(e.y-g.py)**2 < 1400*1400));
+  if(g.mega && g.mega.dead) g.mega = null;
   g.proj = g.proj.filter(p => p.life>0);
   g.ebul = g.ebul.filter(b => b.life>0);
   g.gems = g.gems.filter(x => !x.got);
@@ -1070,7 +1150,7 @@ function draw(){
   for(const e of g.enemies){ drawTelegraph(e); if(e.ds && e.ds.ph === 'wind') drawPath(e.x, e.y, e.ds.ang, e.ds.len, e.r, clamp(e.ds.t/e.dash.wind, 0, 1), TYPES[e.type].c); }
   // enemigos
   for(const e of g.enemies){
-    const s = makeSprite(e.seed, e.hue, false, e.boss?12:10, 3), sz = e.r*2.5;
+    const s = makeSprite(e.seed, e.hue, false, e.mega?14:e.boss?12:10, 3), sz = e.r*2.5;
     const tembla = (e.ds && e.ds.ph === 'wind') || (e.bs && e.bs.ph === 'wind');   // tiembla mientras avisa
     ctx.save(); ctx.translate(e.x + (tembla ? Math.sin(g.t*60)*2 : 0), e.y); if(g.px<e.x) ctx.scale(-1,1);
     ctx.globalAlpha = 0.3; ctx.fillStyle='#000'; ctx.beginPath(); ctx.ellipse(0,sz*0.45,sz*0.4,sz*0.14,0,0,7); ctx.fill(); ctx.globalAlpha=1;
@@ -1155,7 +1235,7 @@ function drawPath(x, y, ang, len, w, k, col){                 // recorrido marca
 }
 function drawTelegraph(e){                                    // aviso del ataque que prepara un jefe
   const b = e.bs; if(!b || b.ph !== 'wind' || !b.tg) return;
-  const tg = b.tg, k = clamp(b.t/tg.dur, 0, 1), col = TYPES[e.type].c;
+  const tg = b.tg, k = clamp(b.t/tg.dur, 0, 1), col = TYPES[b.atk || e.type].c;
   const area = (x,y,R) => { ctx.fillStyle = 'rgba(255,60,70,0.16)'; ctx.beginPath(); ctx.arc(x,y,R,0,7); ctx.fill();
     ctx.fillStyle = col; ctx.globalAlpha = 0.35; ctx.beginPath(); ctx.arc(x,y,R*k,0,7); ctx.fill(); ctx.globalAlpha = 1;
     ctx.strokeStyle = '#ff3b4a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x,y,R,0,7); ctx.stroke(); };
@@ -1238,6 +1318,12 @@ function drawHUD(){
     ctx.fillStyle='#000'; ctx.fillText(txt,w/2+1,47); ctx.fillStyle=lighten(mt.c); ctx.fillText(txt,w/2,46); }
   if(g.liq){ const f = g.liqF, t2 = `${g.liq.n.liq}: ${f.dps ? '-'+(Math.round(f.dps*10)/10)+' vida/s' : 'velocidad ×'+(Math.round(f.slow*100)/100)}${f.nerf ? ' · ¡débil! daño ×0.8' : ''}`; ctx.font='bold 11px ui-monospace,monospace'; ctx.textAlign='center'; ctx.fillStyle='#000'; ctx.fillText(t2,w/2+1,63); ctx.fillStyle=g.liq.liq[1]; ctx.fillText(t2,w/2,62); }
   { let n = 0; for(const k in g.ps) if(g.ps[k] > 0){ const [nm, c] = PS_NAMES[k], x = 10 + n*78, y = h-108; ctx.fillStyle = c; ctx.fillRect(x,y,74,16); ctx.fillStyle = '#111'; ctx.textAlign = 'left'; ctx.font = 'bold 10px ui-monospace,monospace'; ctx.fillText(nm, x+3, y+12); n++; } }
+  if(g.mega && !g.mega.dead){ const e = g.mega, bw = Math.min(360, w-40), x = (w-bw)/2, y = h-34;       // barra del Titán, siempre visible
+    const k = megaK(e), tags = [k.dmg > 1.02 ? `Impaciente: daño +${Math.round((k.dmg-1)*100)}% · vel +${Math.round((k.spd-1)*100)}% · ataque +${Math.round((k.rate-1)*100)}%` : '', e.ad.armor > 0.03 ? `Armadura ${Math.round(e.ad.armor*100)}%` : ''].filter(Boolean).join('   ');
+    if(tags){ ctx.font = 'bold 11px ui-monospace,monospace'; ctx.textAlign = 'center'; ctx.fillStyle = '#000'; ctx.fillText(tags, w/2+1, y-23); ctx.fillStyle = e.ad.armor > 0.03 ? '#9fd8ff' : '#ffb347'; ctx.fillText(tags, w/2, y-24); }
+    ctx.fillStyle = '#000a'; ctx.fillRect(x-3, y-19, bw+6, 30); ctx.font = 'bold 12px ui-monospace,monospace'; ctx.textAlign = 'center';
+    ctx.fillStyle = e.enr ? '#ff6a7d' : '#fff'; ctx.fillText('PRIMORDIO, EL TITÁN' + (e.enr ? ' · ¡ENFURECIDO!' : ''), w/2, y-6);
+    ctx.fillStyle = '#400'; ctx.fillRect(x, y, bw, 8); ctx.fillStyle = e.enr ? '#ff2a3a' : TYPES[e.bs.atk].c; ctx.fillRect(x, y, bw*Math.max(0, e.hp/e.maxhp), 8); }
   if(g.ev){ const E = EVENTS[g.ev.kind], left = Math.ceil(g.ev.dur - g.ev.t); ctx.fillStyle = '#000a'; ctx.fillRect(10,56,180,18); ctx.fillStyle = E.col; ctx.fillRect(10,56,4,18);
     ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.font = 'bold 11px ui-monospace,monospace'; ctx.fillText(`${E.name} · ${left} s`, 20, 69); }
   if(g.vis > 0.5){ ctx.font='bold 11px ui-monospace,monospace'; ctx.textAlign='center'; ctx.fillStyle='#000'; ctx.fillText('Visión reducida · rompe la hierba',w/2+1,77); ctx.fillStyle='#bfe6a0'; ctx.fillText('Visión reducida · rompe la hierba',w/2,76); }
@@ -1409,7 +1495,7 @@ function panelGacha(){
   slotDraw();
 }
 function drawDex(canvas, d){                       // sprite de una ficha (los jefes son de 12x12 celdas)
-  const grid = d.big ? 12 : 10, spr = d.role==='Compañero' ? spriteOf(SPECIES.find(x => x.id===d.id), SAVE.owned[d.id] && SAVE.owned[d.id].shiny) : makeSprite(d.seed, d.hue, false, grid, 3);
+  const grid = d.grid || (d.big ? 12 : 10), spr = d.role==='Compañero' ? spriteOf(SPECIES.find(x => x.id===d.id), SAVE.owned[d.id] && SAVE.owned[d.id].shiny) : makeSprite(d.seed, d.hue, false, grid, 3);
   canvas.width = canvas.height = 36; const k = canvas.getContext('2d'); k.imageSmoothingEnabled = false; k.clearRect(0,0,36,36);
   k.drawImage(spr, (36-spr.width)/2, (36-spr.height)/2);
 }
@@ -1422,13 +1508,13 @@ function panelDex(tab='c'){
   $('#pBody').querySelectorAll('button[data-t]').forEach(b => b.onclick = () => panelDex(b.dataset.t));
   const box = $('#dg');
   if(tab === 'c') DEX.forEach(d => {
-    const e = C[d.id], ok = e && e.seen, t = TYPES[d.type], card = document.createElement('div'); card.className = 'dcard';
+    const e = C[d.id], ok = e && e.seen, t = TYPES[d.type] || MEGA_T, card = document.createElement('div'); card.className = 'dcard';
     const cv2 = document.createElement('canvas'); cv2.style.cssText = 'width:72px;height:72px;image-rendering:pixelated'; if(!ok) cv2.className = 'sil';
     drawDex(cv2, d); card.appendChild(cv2);
     if(!ok){ card.insertAdjacentHTML('beforeend', '<b>???</b><small>Sin descubrir</small>'); }
     else card.insertAdjacentHTML('beforeend', `<b>${d.name}${e.shiny?' ✨':''}</b>
       <span><span class="tag" style="background:${t.c}">${t.n}</span><span class="tag" style="background:#ddd">${d.role}</span></span>
-      <small>Especialidad: ${TYPE_BUFF[d.type].label} (×${MAP_BUFF} en su mapa)<br>${chartTxt(d.type)}<br>Vida ${d.hp} · Vel ${d.spd}<br>${d.note}</small>
+      <small>${TYPE_BUFF[d.type] ? `Especialidad: ${TYPE_BUFF[d.type].label} (×${MAP_BUFF} en su mapa)<br>${chartTxt(d.type)}` : 'Usa los ataques de los 6 tipos<br>Sin ventajas ni debilidades'}<br>Vida ${d.hp} · Vel ${d.spd}<br>${d.note}</small>
       <small>${DESC[d.id]}</small>${d.role==='Compañero' ? '' : `<small>Derrotados: <b>${e.kills||0}</b></small>`}`);
     box.appendChild(card);
   });
@@ -1442,7 +1528,7 @@ function panelDex(tab='c'){
 }
 function panelStats(){
   const s = SAVE.stats;
-  openPanel('Estadísticas', [['Runs',s.runs],['Mejor tiempo',fmtT(s.bestT)],['Mejor nivel',s.bestL],['Enemigos derrotados',s.kills],
+  openPanel('Estadísticas', [['Runs',s.runs],['Mejor tiempo',fmtT(s.bestT)],['Mejor nivel',s.bestL],['Enemigos derrotados',s.kills],['Titanes derrotados',s.titans||0],
     ['Compañeros',Object.keys(SAVE.owned).length+' / '+SPECIES.length],['Shinies',Object.values(SAVE.owned).filter(o=>o.shiny).length]]
     .map(([a,b]) => `<div class="stat"><span>${a}</span><b>${b}</b></div>`).join('') +
     '<div class="center" style="margin-top:14px"><button id="bReset">Borrar toda la partida</button></div>');
@@ -1456,7 +1542,7 @@ function panelGuide(){
     <div class="stat"><span>Pausa</span><b>Esc</b></div>
     <p class="hint" style="text-align:left;font-size:14px">Recoge gemas azules para subir de nivel y elige mejoras. Al nivel 5 de un movimiento evoluciona.
     Niveles 5, 15, 25…: objeto (sólo uno). Niveles 10, 20, 30…: Vínculo, que une dos movimientos en un hueco.
-    Cada 4 minutos aparece un legendario. Cada 75 segundos cambia el mapa: las criaturas del tipo del mapa (tú también) ganan ×1.2 en su especialidad. Mira el Criaturario para ver todas.
+    Cada 4 minutos aparece un legendario. A los 20 minutos despierta Primordio, el Titán, un megajefe lento y enorme con los ataques de los 6 tipos: elige según tu distancia (cerca, ondas y anillos; a media distancia, abanicos, zonas y ráfagas; lejos, embestidas, tornados y lluvia de meteoros), descansa cada 3 ataques e invoca legendarios; lo que va a hacer se lee sobre su cabeza. Vuelve cada 20 minutos, más fuerte. Cada 75 segundos cambia el mapa: las criaturas del tipo del mapa (tú también) ganan ×1.2 en su especialidad. Mira el Criaturario para ver todas.
     Además de movimientos hay pasivas, que mejoran sin disparar nada. Se agrupan en ramas (Agilidad, Fortaleza, Poder, Ingenio) y las opuestas se excluyen: al coger una de Agilidad ya no salen las de Fortaleza, y al coger una de Poder ya no salen las de Ingenio. Puedes llevar 4 pasivas, hasta nivel 5.
     Cada tipo es fuerte contra uno y débil contra otro (Fuego > Planta > Agua > Fuego y Eléctrico > Dragón > Sombra > Eléctrico): ×1.3 a favor y ×0.75 en contra, tanto en tus ataques como en los suyos. Los movimientos de control aplican un estado a los hostiles (puntitos de color bajo ellos): Marea los ralentiza, Raíces los inmoviliza, Estática los paraliza, Brasas los quema, Niebla reduce su alcance y Ciclón los arrastra y junta. Los legendarios resisten: ni se inmovilizan ni se paralizan.
     Los monstruos también pelean: algunos embisten (verás el recorrido marcado en el suelo antes del golpe, y se puede esquivar), los violetas (Sombra) llegan a la mitad y los disparos, tuyos y suyos, se paran contra montañas y árboles. Los legendarios repiten un guion fijo de 5 ataques de su tipo, siempre en el mismo orden y con aviso en el suelo (el nombre del ataque y el siguiente salen sobre su cabeza); al 30% de vida se enfurecen y hacen un 20% más de daño.

@@ -9,7 +9,7 @@ Juego tipo *Survivor* en **un solo `index.html`** (canvas + JS vanilla, sin depe
 
 ## Flujo de trabajo (acordado con el usuario)
 1. Implementar y ampliar `scripts/smoke.js` con aserciones exactas de lo nuevo. Si hay cambios visuales, ejecutar `scripts/capturas.sh` y **mirar las imágenes** (smoke.js no ve el CSS ni el dibujo: un `canvas{position:fixed}` global estuvo rompiendo fichas y tragamonedas sin que ninguna prueba lo notara).
-2. Probar en un servidor temporal que sirva **solo una copia** de `index.html` y `music/` (nunca el repo: tiene `.git` y `memory.md`), en LAN/Tailscale; apagarlo al terminar.
+2. Subir a la **versión de prueba permanente** con `bash scripts/sync-dashboard.sh --test --apply` (contenedor `criaturas-test` de dashboard-stack, sin caché, accesible desde el panel de Homepage por LAN, Tailscale y el dominio, este último detrás del portero y de Cloudflare Access) y decir al usuario que la revise. Ya no se levantan servidores temporales (y nunca servir el repo: tiene `.git` y `memory.md`).
 3. **Solo cuando el usuario lo ordene:** `audit-secrets.sh` → `smoke.js` → `sync-dashboard.sh --apply` → commit. Nada de commit ni push por iniciativa propia.
 4. Si se sube de versión: `VERSION`/`VERSION_DATE` en `index.html`, primer encabezado de `CHANGELOG.md` y `README.md` a la vez (regla 003).
 5. Tras cada tarea: entrada arriba en `memory.md` y línea en `CHANGELOG.md`.
@@ -19,7 +19,8 @@ Juego tipo *Survivor* en **un solo `index.html`** (canvas + JS vanilla, sin depe
 bash scripts/capturas.sh [carpeta]       # capturas con Chromium sin pantalla: ÚSALO para comprobar lo visual antes de pedir al usuario que pruebe
 node scripts/smoke.js                    # debe acabar en "SMOKE OK"
 bash scripts/audit-secrets.sh            # antes de cada commit; debe salir "limpio"
-bash scripts/sync-dashboard.sh --apply   # copia index.html y music/ a la demo servida (simula por defecto)
+bash scripts/sync-dashboard.sh --test --apply   # sube a la VERSIÓN DE PRUEBA (simula por defecto)
+bash scripts/sync-dashboard.sh --apply          # copia a la demo y a la pública (sólo cuando el usuario lo ordene)
 COMFY_HOST=<pc> bash scripts/generar_musica.sh --apply [tipo ...]   # regenera pistas (ComfyUI arrancado en el PC)
 ```
 
@@ -28,6 +29,7 @@ COMFY_HOST=<pc> bash scripts/generar_musica.sh --apply [tipo ...]   # regenera p
 - Las funciones del juego son globales (`G`, `update`, `fire`, `chooseOffer`, `curOffer`, `getChunk`…) y `smoke.js` las llama directamente. Para pruebas exactas **sustituye `getChunk`** por un mundo vacío o a medida (los obstáculos reales salen al azar y harían las pruebas inestables) y limpia `keys` antes de simular movimiento.
 - El audio de las pruebas es falso (`Audio`/`AudioContext` simulados en `smoke.js`): no valida cómo suena, solo la lógica de fundidos, bucle y pausa.
 - Cada `fire()` fija `curMT` (tipo del movimiento) para calcular ventajas/debilidades en `hurt()`; los proyectiles llevan `p.mt`. Si se añade otra forma de dañar, pasar el tipo a `hurt(e, d, mt)`.
+- Megajefe (`MEGA`, `spawnMega`, `megaPick`, `megaWatch`): reutiliza la maquinaria de `bossStep` (aviso → acción → descanso) pero elige el ataque por distancia en vez de por guion; sus pasos llevan el tipo del ataque como tercer elemento (`b.atk`) y `bossAct` usa `b.atk`, no `e.type` (el Titán es del pseudotipo `primordio`, sin ventajas ni entrada en `TYPES`; los sitios que leen `TYPES[...]` deben usar `b.atk` o `MEGA_T`). Los meteoros de jefe llevan `foe:true` y no dañan a los hostiles. `MEGA_MOVES` se genera de `BOSS_SCRIPT`: al añadir ataques a un tipo, el Titán los hereda.
 - Eventos: `G.ev` (uno a la vez) los gestiona `updateEvents`; los multiplicadores de la lluvia entran por `evMul` dentro de `buffFor` (sólo estadísticas dmg/spd/rate/res; hp y size se aplican por `syncEnemy`). Los cofres y objetos nuevos del mundo se añaden **al final** de `getChunk` para no cambiar el terreno ya generado con la misma semilla. Las elecciones de cofre van por `G.chestOffers` y `closeLevelUp` sólo consume un nivel pendiente si la oferta no es de cofre.
 - **Cuidado al editar con reemplazos de texto:** poner un comentario `//` al final de una línea que antes seguía con código deja ese código comentado (así se rompió `closeLevelUp`). Después de tocar la lógica de pausa/niveles, ejecutar `smoke.js` y mirar las capturas.
 - Hostiles con habilidades: `enemyDash` (embestidas) y `bossStep` (guion de los jefes) devuelven «ocupado» y el bucle de enemigos anula la persecución (`ch`). Los jefes se crean con `spawnBoss()` (úsalo también en las pruebas). El alcance sale siempre de `reachOf(e)` (violetas ×0.5 y Niebla ×0.45). Los estados del jugador están en `G.ps` y los ataques de área de los jefes los aplican con `hitPlayerFx`.

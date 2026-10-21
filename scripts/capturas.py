@@ -68,6 +68,17 @@ with sync_playwright() as p:
     pg.evaluate("G.px = 600 - 120 + 40; G.py = 400 - 20"); pg.wait_for_timeout(3200); pg.screenshot(path=OUT + '54-cofres.png')
     pg.evaluate("G.px = 600 + 110; G.py = 400 + 20; setMap(MAPS[0]); const l = getChunk(Math.floor(G.px/CH), Math.floor(G.py/CH)); l.push({k:'liquido', x: G.px, y: G.py, r: 110, v: .5, solid: false, id: 'cap-lq', hp: 0, flash: 0, orbT: 0, dead: false, prog: 0})")
     pg.wait_for_timeout(1200); pg.screenshot(path=OUT + '55-liquido-debil.png')
+    # megajefe Primordio: reposo (rótulo según tu distancia), portal de invocación, meteoros, tornados dobles y furia con legendarios
+    mega = base + "G.mega = null; G.nextMega = 1e9; const m = spawnMega(); m.x = G.px + 330; m.y = G.py - 70; m.spd = 0; m.disc = true; m.bs.t = -999; m.bs.summon = 0; "
+    pg.evaluate(mega + "G.t = 1200"); pg.wait_for_timeout(700); pg.screenshot(path=OUT + '70-mega-reposo.png')
+    pg.evaluate(mega + "startBossStep(m, ['summon', 'Invocar a Solarax', 'fuego'])"); pg.wait_for_timeout(900); pg.screenshot(path=OUT + '71-mega-invoca.png')
+    pg.evaluate(mega + "m.x = G.px + 360; startBossStep(m, ['rain', 'Lluvia de meteoros', 'fuego'])"); pg.wait_for_timeout(1100); pg.screenshot(path=OUT + '72-mega-meteoros.png')
+    pg.evaluate(mega + "m.x = G.px + 330; startBossStep(m, ['tornado', 'Ciclón', 'dragon'])"); pg.wait_for_timeout(700); pg.screenshot(path=OUT + '73-mega-tornados.png')
+    pg.evaluate(mega + "m.x = G.px + 130; m.y = G.py - 30; startBossStep(m, ['pulse', 'Marea', 'agua'])"); pg.wait_for_timeout(700); pg.screenshot(path=OUT + '74-mega-onda-cerca.png')
+    pg.evaluate(mega + "m.hp = m.maxhp*0.2; m.x = G.px + 330; for (const t of ['agua', 'planta']) { const x = spawnBoss(t, G.px - 220 + (t === 'planta' ? 160 : 0), G.py + 120, 3000); x.minion = true; x.disc = true; x.spd = 0; }")
+    pg.wait_for_timeout(1200); pg.screenshot(path=OUT + '75-mega-furia-legendarios.png')
+    pg.evaluate(mega + "m.ad.agg = 0.8; m.hp = m.maxhp*0.6"); pg.wait_for_timeout(500); pg.screenshot(path=OUT + '76-mega-impaciente.png')
+    pg.evaluate(mega + "m.ad.armor = 0.35; m.hp = m.maxhp*0.6"); pg.wait_for_timeout(500); pg.screenshot(path=OUT + '77-mega-armadura.png')
     fps = pg.evaluate("""() => new Promise(res => { G.enemies = []; for (let i = 0; i < 200; i++) { const et = ENEMY_TYPES[i % 6]; G.enemies.push({...et, x: G.px + (Math.random()-.5)*900, y: G.py + (Math.random()-.5)*600, hp: 1e6, maxhp: 1e6, kx: 0, ky: 0, flash: 0, orbT: 0, shootT: 9, ph: 0, hpBuf: 1, rBuf: 1, dcd: 9, ds: null, disc: true}); }
         let n = 0, t0 = performance.now(); const f = () => { n++; if (performance.now() - t0 < 3000) requestAnimationFrame(f); else res(n / 3); }; requestAnimationFrame(f); })""")
     print('FPS_APROX (200 hostiles, sin GPU):', round(fps, 1))

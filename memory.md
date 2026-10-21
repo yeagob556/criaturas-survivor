@@ -14,6 +14,18 @@ Regla: al **finalizar cada tarea** se añade una entrada arriba (la más recient
 
 ## Entradas
 
+### 2026-10-21 — v0.10.1: el Titán, 10× de vida, regeneración y adaptación al daño
+- **Qué cambió:** vida = 10 × `bossHp(t, n)` (+50% por Titán); regeneración 0,1%/s; `megaAdapt`: con poco daño se impacienta (+40% vel, +25% daño, +30% cadencia) y con mucho gana armadura (hasta 50%); HUD con las etiquetas.
+- **Ficheros:** `index.html` (`MEGA`, `bossHp`, `megaK`, `megaAdapt`, `hurt`, `bossStep`, HUD), `scripts/smoke.js`, `scripts/capturas.py`, `README.md`, `CHANGELOG.md`
+- **Decisiones:** el daño se mide en bruto (antes de la armadura) para que la armadura no distorsione la medición; 20 s de gracia y media móvil de 8 s; referencia: matarlo en 150 s; todo ajustable en `MEGA`.
+- **Pendiente:** equilibrar con una partida real; sincronizar y commitear cuando el usuario lo ordene.
+
+### 2026-10-21 — Mejora 9: megajefe Primordio, el Titán (v0.10.0)
+- **Qué cambió:** megajefe a los 20 min (y cada 20) con todos los ataques de los 6 tipos elegidos por distancia (cerca/media/lejos, rotación fija y descanso cada 3), invocaciones de legendarios (inicio y 75/50/25%), lluvia de meteoros, tornados dobles, embestida que cierra distancia, furia al 30%, barra propia, botín y ficha en el Criaturario (19).
+- **Ficheros:** `index.html` (tablas `MEGA`, `MEGA_MOVES`, `MEGA_T`, `BOSS_ATK` summon/rain; `spawnMega`, `megaPick`, `megaWatch`, cambios en `startBossStep/bossAct/bossStep/kill`), `scripts/smoke.js`, `scripts/capturas.py`, `README.md`, `CHANGELOG.md`, `CLAUDE.md`
+- **Decisiones:** el repertorio sale de los guiones de los legendarios para no duplicar; el Titán es del pseudotipo `primordio` (sin ventajas ni debilidades) y cada ataque lleva su propio tipo (`b.atk`); los legendarios normales se pausan mientras vive y tras caer esperan ≥60 s; vida 30000+10/s y +50% por Titán (sin equilibrar: ningún jugador ha llegado aún a los 20 min en las pruebas).
+- **Pendiente / siguiente paso:** equilibrar vida/daño del Titán con una partida real (hace falta llegar a 20 min; se puede forzar con `G.t=1195` en la consola); sincronizar y commitear cuando el usuario lo ordene.
+
 ### 2026-10-21 — Mejora 8: eventos, cofres, aparición progresiva y líquidos contrarios (v0.9.0)
 - **Qué cambió:** aparición de hostiles progresiva; 3 eventos aleatorios (marea, lluvia de agua con buffs/nerfeos, lluvia de fuego con meteoritos avisados); cofres pequeños y grandes; líquidos que castigan al tipo contrario (×1,5 y -20% de daño) y no afectan al del mapa.
 - **Ficheros:** `index.html` (tablas `EVENTS/RAIN_FX/METEOR/CHEST`, `spawnRate/spawnCap`, `startEvent/updateEvents/meteorHit`, `openChest`, `liqEffect`, `drawChest/drawMeteor*`), `scripts/smoke.js`, `scripts/capturas.py`, `README.md`, `CHANGELOG.md`, `CLAUDE.md`
