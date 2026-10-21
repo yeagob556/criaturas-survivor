@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-10-21 (mejora 4)
+- **Obstáculos por mapa:** mundo infinito generado por trozos de 480 px con semilla por partida (`getChunk`, determinista). Cinco clases: montaña (sólida, indestructible), árbol (sólido, indestructible), piedra (sólida, se rompe, 30% de soltar moneda), hierba alta (se atraviesa, se rompe, reduce la visión dentro) y líquido (se atraviesa).
+- **Cambian con el ambiente:** la clase se guarda, pero nombre, aspecto y efecto salen del tipo del mapa actual (`BIOME`): volcán/lava, iceberg/aguas profundas, colina/pantano, pico de cuarzo/charco cargado, risco/brea, cumbre/ácido. Al rotar el mapa todo cambia a la vez. Líquidos: lava 7, charco cargado 5 y ácido 6 de daño por segundo; aguas ×0.6, pantano ×0.65 y brea ×0.5 de velocidad. Las criaturas del tipo del mapa son inmunes.
+- Hueco garantizado para pasar (centros a ≥75 px del borde del trozo, sólidos separados ≥28 px), zona de inicio despejada, hostiles que rodean los sólidos, los ataques (proyectiles, áreas, órbitas) rompen piedras y hierba.
+- Criaturario: la ficha de cada mapa lista sus obstáculos y el efecto del líquido. HUD: aviso al pisar un líquido o estar en hierba alta.
+- `scripts/smoke.js`: determinismo, zona de inicio, huecos, colisiones, rodeo, destrucción sin reaparición, visión, líquidos por mapa e inmunidad, y dibujo en los 6 mapas.
+
 ## 2026-10-21 (mejora 3)
 - **Ventajas y debilidades por tipo:** dos triángulos (Fuego > Planta > Agua > Fuego; Eléctrico > Dragón > Sombra > Eléctrico). ×1.3 a favor y ×0.75 en contra (`EFF_UP`, `EFF_DOWN`, `STRONG`), tanto en tus ataques como en los de los hostiles. Números de daño con ↑/↓ y aviso «¡Débil!» / «Resiste» sobre el jugador.
 - **6 movimientos de control, uno por tipo,** con un estado propio sobre los hostiles: Marea (agua, ralentiza), Raíces (planta, inmoviliza), Estática (eléctrico, paraliza), Brasas (fuego, quema), Niebla (sombra, alcance reducido: contacto, disparos y balas) y Ciclón (dragón, tornado que arrastra y junta). Los legendarios resisten: sin inmovilizar ni paralizar, ralentización más débil y duraciones a la mitad.

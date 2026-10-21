@@ -2,7 +2,7 @@
 // y simula 12 minutos de partida (inmortal) resolviendo subidas de nivel. Uso: node scripts/smoke.js
 const fs = require('fs'), path = require('path');
 const noop = () => {};
-const mkCtx = () => new Proxy({}, { get: (t, k) => k in t ? t[k] : (k === 'measureText' ? () => ({ width: 1 }) : noop), set: (t, k, v) => { t[k] = v; return true; } });
+const mkCtx = () => new Proxy({}, { get: (t, k) => k in t ? t[k] : (k === 'measureText' ? () => ({ width: 1 }) : k === 'createRadialGradient' ? () => ({ addColorStop: noop }) : noop), set: (t, k, v) => { t[k] = v; return true; } });
 const els = {};
 const mkEl = () => ({ classList: { add: noop, remove: noop, toggle: noop, contains: () => false }, style: {}, getContext: mkCtx, addEventListener: noop, appendChild: noop, querySelectorAll: () => [], insertAdjacentHTML: noop, setPointerCapture: noop, width: 30, height: 30, set innerHTML(v) {}, set textContent(v) {} });
 global.document = { querySelector: s => els[s] || (els[s] = mkEl()), createElement: () => mkEl() };
@@ -24,6 +24,10 @@ src += `
   }
   console.log('frames', ok, 't', G.t.toFixed(0), 'lvl', G.lvl, 'kills', G.kills);
   console.log('mapas vistos', Object.keys(SAVE.dex.m).length, '/', MAPS.length, '| criaturas descubiertas', Object.values(SAVE.dex.c).filter(d => d.seen).length, '/', DEX.length);
+  // la simulacion anterior uso obstaculos reales al azar; las pruebas exactas se hacen en un mundo vacio
+  const realChunk = getChunk; const seenKinds = new Set(); for (const c of G.chunks.values()) for (const o of c) seenKinds.add(o.k);
+  console.log('trozos generados', G.chunks.size, '| clases vistas', [...seenKinds].join(','));
+  getChunk = () => [];
   // --- pruebas de la lógica de buffs (valores exactos) ---
   const eq = (a, b, msg) => { if (Math.abs(a - b) > 1e-9) throw new Error('FALLO ' + msg + ': ' + a + ' vs ' + b); };
   const near = (a, b, msg) => { if (Math.abs(a - b) > 1e-6 * Math.max(1, b)) throw new Error('FALLO ' + msg + ': ' + a + ' vs ' + b); };
@@ -106,6 +110,55 @@ src += `
   for (let i = 0; i < 600; i++) { G.hp = G.maxhp; update(1 / 60); } eq(G.tornados.length, 0, 'tornado caduca');
   panelDex('c'); panelGuide();
   console.log('VENTAJAS Y CONTROL OK');
+  // --- obstaculos ---
+  getChunk = realChunk;
+  newRun(); G.seed = 12345; G.chunks = new Map(); const sig = (cx, cy) => JSON.stringify(getChunk(cx, cy)); const c1 = sig(2, 3); G.chunks = new Map(); eq(sig(2, 3) === c1 ? 1 : 0, 1, 'trozo determinista');
+  G.seed = 999; G.chunks = new Map(); eq(sig(2, 3) === c1 ? 1 : 0, 0, 'otra semilla, otro trozo');
+  const cnt = {}; for (let j = -6; j <= 6; j++) for (let i = -6; i <= 6; i++) { const c = getChunk(i, j);
+    for (const o of c) { cnt[o.k] = (cnt[o.k] || 0) + 1; if (Math.hypot(o.x, o.y) < 170) throw new Error('FALLO zona de inicio con obstaculo ' + o.k);
+      for (const q of c) if (q !== o && o.solid && q.solid && Math.hypot(o.x - q.x, o.y - q.y) < o.r + q.r + 28 - 1e-9) throw new Error('FALLO solidos demasiado juntos'); } }
+  for (const k of ['montana', 'arbol', 'piedra', 'hierba', 'liquido']) if (!(cnt[k] > 20)) throw new Error('FALLO pocas clases ' + k + ': ' + cnt[k]);
+  console.log('densidad', JSON.stringify(cnt));
+  const mkO = (k, x, y, r) => ({k, x, y, r, v:0.3, solid:['montana', 'arbol', 'piedra'].includes(k), id:'t' + Math.random(), hp:OBS_HP[k] || 0, flash:0, orbT:0, dead:false});
+  const world = list => { getChunk = (cx, cy) => (cx === 0 && cy === 0) ? list : []; };
+  const stay = n => { for (let i = 0; i < n; i++) { G.hp = G.maxhp; G.inv = 0; update(1 / 60); } };
+  // sólidos empujan al jugador y a los hostiles
+  newRun(); G.moves = []; const mont = mkO('montana', 100, 0, 50); world([mont]); G.px = 95; G.py = 0; stay(2);
+  if (!(Math.hypot(G.px - 100, G.py) >= 60 - 1e-6)) throw new Error('FALLO jugador dentro de la montana');
+  keys.d = true; G.px = 0; G.py = 0; stay(180); keys.d = false; if (!(G.px < 100 - 60 + 1)) throw new Error('FALLO jugador atraviesa la montana: ' + G.px);
+  newRun(); G.moves = []; world([mkO('montana', 250, 0, 50)]); G.px = G.py = 0; G.enemies = [mk('planta', 500, 0, {spd:120, hp:1e9})]; stay(60 * 9);
+  if (!(G.enemies[0].x < 150)) throw new Error('FALLO el hostil no rodea la montana: x=' + G.enemies[0].x);
+  newRun(); G.moves = []; const arb = mkO('arbol', 200, 0, 13); world([arb]); G.px = G.py = 0; G.enemies = [mk('planta', 215, 0, {spd:0})]; stay(2);
+  if (!(Math.hypot(G.enemies[0].x - 200, G.enemies[0].y) >= 13 + 7 - 1e-6)) throw new Error('FALLO hostil dentro del arbol');
+  // montañas y árboles indestructibles; piedras y hierba se rompen y no reaparecen
+  newRun(); const m2 = mkO('montana', 300, 300, 50), t2 = mkO('arbol', 300, 400, 13); hitObs(m2, 1e9); hitObs(t2, 1e9); eq(m2.dead ? 1 : 0, 0, 'montana indestructible'); eq(t2.dead ? 1 : 0, 0, 'arbol indestructible');
+  newRun(); G.seed = 77; G.chunks = new Map(); getChunk = realChunk; let rock = null; for (let j = -3; j <= 3 && !rock; j++) for (let i = -3; i <= 3 && !rock; i++) rock = getChunk(i, j).find(o => o.k === 'piedra');
+  const rid = rock.id, rcx = Math.floor(rock.x / CH), rcy = Math.floor(rock.y / CH); hitObs(rock, 10); eq(rock.dead ? 1 : 0, 0, 'piedra aguanta un golpe suave'); hitObs(rock, 1e9); eq(rock.dead ? 1 : 0, 1, 'piedra rota');
+  G.chunks = new Map(); eq(getChunk(rcx, rcy).some(o => o.id === rid) ? 1 : 0, 0, 'la piedra rota no reaparece');
+  newRun(); const rk = mkO('piedra', 80, 0, 14); world([rk]); G.moves = []; G.px = G.py = 0; G.proj.push({x:80, y:0, vx:0, vy:0, dmg:20, r:6, pierce:1, life:1, col:'#fff', hit:[], mt:'fuego'}); stay(1);
+  if (!(rk.hp < OBS_HP.piedra)) throw new Error('FALLO el proyectil no daña la piedra');
+  newRun(); const rk2 = mkO('piedra', 60, 0, 14), gr2 = mkO('hierba', 60, 10, 30), mt3 = mkO('montana', 70, 0, 40); world([rk2, gr2, mt3]); G.moves = []; refreshNear();
+  hitArea(60, 0, 20, 100); eq(rk2.dead ? 1 : 0, 1, 'area rompe piedra'); eq(gr2.dead ? 1 : 0, 1, 'area rompe hierba'); eq(mt3.dead ? 1 : 0, 0, 'area no rompe montana');
+  // hierba: reduce la visión mientras estás dentro
+  newRun(); const gr = mkO('hierba', 0, 0, 40); world([gr]); G.moves = []; G.px = G.py = 0; stay(90); if (!(G.vis > 0.9)) throw new Error('FALLO vision dentro de la hierba: ' + G.vis);
+  hitObs(gr, 1e9); stay(90); if (!(G.vis < 0.05)) throw new Error('FALLO vision tras romper la hierba: ' + G.vis);
+  // líquidos: efecto según el mapa; inmunes los del tipo del mapa
+  const liqW = () => { const l = mkO('liquido', 0, 0, 90); world([l]); return l; };
+  newRun(); G.moves = []; liqW(); G.sp = SPECIES.find(x => x.id === 'gotin'); setMap(MAPS.find(x => x.type === 'fuego')); G.hp = G.maxhp = 100; G.px = G.py = 0; G.inv = 0;
+  for (let i = 0; i < 60; i++) update(1 / 60); near(100 - G.hp, 7, 'lava danya 7 por segundo');
+  newRun(); G.moves = []; liqW(); G.sp = SPECIES.find(x => x.id === 'brasito'); setMap(MAPS.find(x => x.type === 'fuego')); G.hp = G.maxhp = 100; G.px = G.py = 0;
+  for (let i = 0; i < 60; i++) update(1 / 60); eq(G.hp, 100, 'tipo fuego inmune a la lava');
+  const recorrido = (sp, tipoMapa) => { newRun(); G.moves = []; G.sp = SPECIES.find(x => x.id === sp); const l = mkO('liquido', 0, 0, 400); world([l]); setMap(MAPS.find(x => x.type === tipoMapa));
+    G.px = -300; G.py = 0; keys.d = true; const x0 = G.px; stay(30); keys.d = false; return G.px - x0; };
+  const libre = recorrido('brasito', 'fuego') , agua = recorrido('brasito', 'agua'); near(agua / libre * 1, 0.6 * 1, 'aguas profundas ralentizan x0.6'); // brasito es fuego: en mapa de agua no es inmune
+  const inmune = recorrido('gotin', 'agua'); near(inmune, libre * (SPECIES.find(x => x.id === 'gotin').spd / SPECIES.find(x => x.id === 'brasito').spd) * 1, 'tipo agua inmune a las aguas');
+  newRun(); G.moves = []; liqW(); setMap(MAPS.find(x => x.type === 'fuego')); G.px = G.py = 1000; G.enemies = [mk('planta', 1000, 1000, {spd:0}), mk('fuego', 1000, 1000, {spd:0})];
+  world([mkO('liquido', 1000, 1000, 90)]); G.chunks = new Map(); getChunk = (cx, cy) => (cx === 2 && cy === 2) ? [mkO('liquido', 1000, 1000, 90)] : []; stay(60);
+  near(1e9 - G.enemies[0].hp, 7, 'lava danya al hostil de planta'); eq(G.enemies[1].hp, 1e9, 'hostil de fuego inmune');
+  // el aspecto y el efecto cambian con el mapa; el dibujo funciona en todos
+  const names = new Set(Object.values(BIOME).map(b => b.n.mont)); eq(names.size, MAPS.length, 'montanas distintas por mapa');
+  newRun(); world(['montana', 'arbol', 'piedra', 'hierba', 'liquido'].map((k, i) => mkO(k, 40 + i * 60, 30, 30))); for (const mp of MAPS) { setMap(mp); draw(); }
+  console.log('OBSTACULOS OK');
   G.hp = 0; endRun();
   panelCompanions(); panelUpgrades(); panelGacha(); panelStats(); panelGuide(); refreshMenu();
   console.log('SMOKE OK');

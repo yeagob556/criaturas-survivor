@@ -14,6 +14,12 @@ Regla: al **finalizar cada tarea** se añade una entrada arriba (la más recient
 
 ## Entradas
 
+### 2026-10-21 — Mejora 4: obstáculos que cambian con el mapa
+- **Qué cambió:** mundo por trozos con montañas, árboles, piedras, hierba alta y líquidos; aspecto, nombre y efecto salen del tipo del mapa actual; colisiones, destrucción y visión reducida.
+- **Ficheros:** `index.html` (`BIOME`, `OBS_HP`, sección «Mundo»: `getChunk`/`refreshNear`/`hitObs`/`hitArea`/`liqAt`, `update`, `draw*`), `scripts/smoke.js`, `README.md`, `CHANGELOG.md`
+- **Decisiones:** el objeto sólo guarda su clase y el bioma se resuelve al dibujar/aplicar, así cambia al rotar el mapa sin regenerar; proyectiles y ataques pasan por encima de montañas y árboles; líquidos afectan también a hostiles; los del tipo del mapa son inmunes. Interpretación mía de «reducen la visión»: oscurecimiento radial mientras estás dentro y la hierba tapa a quien esté dentro.
+- **Pendiente / siguiente paso:** probar en navegador (rendimiento con muchos objetos, densidad, atascos); ajustar daños y velocidades de los líquidos; sincronizar y commitear solo cuando el usuario lo ordene.
+
 ### 2026-10-21 — Mejora 3: ventajas por tipo y movimientos de control
 - **Qué cambió:** triángulos de ventaja/debilidad (×1.3/×0.75, ambos sentidos) y 6 movimientos de control (ralentizar, inmovilizar, paralizar, quemar, alcance reducido, tornado) uno por tipo; jefes resistentes; estados visibles.
 - **Ficheros:** `index.html` (`STRONG`/`eff`, `MOVES`, `status`/`dot`/`hurt`/`playerHit`, bucle de enemigos, tornados, dibujo), `scripts/smoke.js`, `README.md`, `CHANGELOG.md`
