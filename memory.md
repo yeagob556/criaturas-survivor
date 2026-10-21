@@ -14,6 +14,12 @@ Regla: al **finalizar cada tarea** se añade una entrada arriba (la más recient
 
 ## Entradas
 
+### 2026-10-21 — Mejora 3: ventajas por tipo y movimientos de control
+- **Qué cambió:** triángulos de ventaja/debilidad (×1.3/×0.75, ambos sentidos) y 6 movimientos de control (ralentizar, inmovilizar, paralizar, quemar, alcance reducido, tornado) uno por tipo; jefes resistentes; estados visibles.
+- **Ficheros:** `index.html` (`STRONG`/`eff`, `MOVES`, `status`/`dot`/`hurt`/`playerHit`, bucle de enemigos, tornados, dibujo), `scripts/smoke.js`, `README.md`, `CHANGELOG.md`
+- **Decisiones:** interpreté «alcance más reducido» como reducir el alcance del enemigo (contacto, disparos y vida de las balas), no el tuyo; «debilidades y buffos» como la tabla de ventajas por tipo; el tipo del movimiento llega a `hurt` por `curMT` y `p.mt`. Revisar ambas lecturas con el usuario.
+- **Pendiente / siguiente paso:** probar en navegador; ajustar duraciones y ×1.3/×0.75; sincronizar y commitear solo cuando lo ordene.
+
 ### 2026-10-21 — Mejora 2: pasivas con ramas excluyentes y 3 movimientos nuevos
 - **Qué cambió:** 12 pasivas en 4 ramas (Agilidad, Fortaleza, Poder, Ingenio) con exclusión por parejas, y movimientos Esporas, Zarpazo y Cometa.
 - **Ficheros:** `index.html` (tablas `BRANCHES`/`PASSIVES`, `mult`, `offerOptions`, `chooseOffer`, `fire`, HUD), `scripts/smoke.js`, `README.md`, `CHANGELOG.md`

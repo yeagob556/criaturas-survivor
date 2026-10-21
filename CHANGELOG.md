@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-10-21 (mejora 3)
+- **Ventajas y debilidades por tipo:** dos triángulos (Fuego > Planta > Agua > Fuego; Eléctrico > Dragón > Sombra > Eléctrico). ×1.3 a favor y ×0.75 en contra (`EFF_UP`, `EFF_DOWN`, `STRONG`), tanto en tus ataques como en los de los hostiles. Números de daño con ↑/↓ y aviso «¡Débil!» / «Resiste» sobre el jugador.
+- **6 movimientos de control, uno por tipo,** con un estado propio sobre los hostiles: Marea (agua, ralentiza), Raíces (planta, inmoviliza), Estática (eléctrico, paraliza), Brasas (fuego, quema), Niebla (sombra, alcance reducido: contacto, disparos y balas) y Ciclón (dragón, tornado que arrastra y junta). Los legendarios resisten: sin inmovilizar ni paralizar, ralentización más débil y duraciones a la mitad.
+- Estados visibles como puntitos de color bajo el hostil; las tarjetas y el Criaturario muestran «Fuerte vs / Débil vs».
+- `scripts/smoke.js` comprueba el triángulo, los multiplicadores exactos, cada estado, la inmunidad de jefes, el alcance reducido y que el tornado junta y caduca.
+
 ## 2026-10-21 (mejora 2)
 - **Pasivas con ramas excluyentes:** 12 pasivas en 4 ramas (Agilidad, Fortaleza, Poder, Ingenio), hasta nivel 5 y 4 como máximo por partida. Las ramas se excluyen por parejas (Agilidad ⟂ Fortaleza, Poder ⟂ Ingenio): al coger la primera pasiva de una rama, la opuesta no vuelve a salir; y una misma oferta nunca mezcla ramas opuestas. Tablas `BRANCHES` y `PASSIVES`.
 - **Movimientos nuevos:** Esporas (planta, área sobre un grupo), Zarpazo (sombra, abanico delante) y Cometa (fuego, bola lenta y grande); con evolución al nivel 5.

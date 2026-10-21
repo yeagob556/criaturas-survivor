@@ -126,7 +126,22 @@ const MOVES = {
   esporas:{name:'Esporas',     evo:'Esporas Letales',type:'planta',    cd:1.80, dmg:15, desc:'Explosión de esporas sobre un grupo de enemigos'},
   zarpazo:{name:'Zarpazo',     evo:'Zarpazo Umbrío', type:'sombra',    cd:0.90, dmg:13, desc:'Tajo en abanico hacia delante'},
   cometa: {name:'Cometa',      evo:'Meteoro',        type:'fuego',     cd:2.00, dmg:11, desc:'Bola lenta y enorme que atraviesa todo'},
+  // Control: poco daño, pero cada tipo aplica su propio estado a los enemigos
+  brasas: {name:'Brasas',      evo:'Infierno',        type:'fuego',     cd:2.40, dmg:5,  desc:'Quema a un grupo: daño continuo durante unos segundos'},
+  marea:  {name:'Marea',       evo:'Maremoto',        type:'agua',      cd:2.60, dmg:6,  desc:'Ola a tu alrededor que ralentiza a los enemigos'},
+  raices: {name:'Raíces',      evo:'Selva Enredada',  type:'planta',    cd:2.80, dmg:7,  desc:'Atrapa a un grupo en el sitio unos instantes'},
+  estatica:{name:'Estática',   evo:'Tormenta Estática',type:'electrico',cd:3.20, dmg:8,  desc:'Pulso que paraliza un instante a los cercanos'},
+  niebla: {name:'Niebla',      evo:'Niebla Densa',    type:'sombra',    cd:3.00, dmg:4,  desc:'Los enemigos cercanos pierden alcance: casi no te alcanzan'},
+  ciclon: {name:'Ciclón',      evo:'Tornado Dracónico',type:'dragon',   cd:3.40, dmg:6,  desc:'Tornado que arrastra y junta a los enemigos'},
 };
+// Ventajas y debilidades: cada tipo es fuerte contra uno (×EFF_UP) y débil contra otro (×EFF_DOWN). Dos triángulos:
+// Fuego > Planta > Agua > Fuego  y  Eléctrico > Dragón > Sombra > Eléctrico. Vale para tus ataques y para los de los hostiles.
+const EFF_UP = 1.3, EFF_DOWN = 0.75;
+const STRONG = {fuego:'planta', planta:'agua', agua:'fuego', electrico:'dragon', dragon:'sombra', sombra:'electrico'};
+const eff = (a, d) => (!a || !d) ? 1 : STRONG[a]===d ? EFF_UP : STRONG[d]===a ? EFF_DOWN : 1;
+const weakTo = t => Object.keys(STRONG).find(k => STRONG[k]===t);
+const chartTxt = t => `Fuerte vs ${TYPES[STRONG[t]].n} · Débil vs ${TYPES[weakTo(t)].n}`;
+const STATUS_COL = [['slow','#4aa8ff'],['root','#5fcf6a'],['stun','#ffd93b'],['burn','#ff7a3d'],['shrink','#8a5cc2']];
 // Pasivas: mejoran siempre sin disparar nada. Cada una pertenece a una rama y las ramas se excluyen por parejas:
 // al coger la primera pasiva de una rama, su rama opuesta queda bloqueada el resto de la partida (y nunca sale en las ofertas).
 const BRANCHES = {
@@ -331,7 +346,7 @@ function newRun(){
   G = {
     sp, shiny, t:0, over:false, paused:false, locked:false,
     px:0, py:0, face:1, inv:0, maxhp:0, hp:0, spdBonus:1, magBonus:1, dmgBonus:1,
-    map:null, mapT:MAP_EVERY, newDisc:[], baseMax:0, lvl:1, xp:0, pending:[], kills:0, coins:0, rerolls:1, item:null, pas:{},
+    map:null, mapT:MAP_EVERY, newDisc:[], baseMax:0, lvl:1, xp:0, pending:[], kills:0, coins:0, rerolls:1, item:null, pas:{}, tornados:[],
     moves:[{id:sp.move, lvl:1, t:0.3, links:[]}],   // cada elemento = un hueco; links = movimientos unidos (Vínculo)
     sel:0, enemies:[], proj:[], ebul:[], gems:[], fx:[], txt:[], spawnAcc:0, nextBoss:180, bossN:0, banner:null, orbAng:0, cam:{x:0,y:0},
   };
@@ -388,9 +403,10 @@ function nearest(x, y, maxD=520){
   return best;
 }
 function shoot(x,y,ang,speed,dmg,r,pierce,life,col){
-  G.proj.push({x,y,vx:Math.cos(ang)*speed,vy:Math.sin(ang)*speed,dmg,r:r*pb('size'),pierce,life,col,hit:[]});
+  G.proj.push({x,y,vx:Math.cos(ang)*speed,vy:Math.sin(ang)*speed,dmg,r:r*pb('size'),pierce,life,col,hit:[],mt:curMT});
 }
-function fire(m, focus){
+function fire(m, focus){ curMT = MOVES[m.id].type; try{ fire0(m, focus); } finally { curMT = null; } }
+function fire0(m, focus){
   const d = moveDmg(m, focus), L = m.lvl, evo = L>=5, col = TYPES[MOVES[m.id].type].c;
   const t = nearest(G.px, G.py);
   const baseAng = t ? Math.atan2(t.y-G.py, t.x-G.px) : (G.face>0?0:Math.PI);
@@ -440,6 +456,40 @@ function fire(m, focus){
       const n = evo ? 2 : 1;
       for(let i=0;i<n;i++) shoot(G.px,G.py,baseAng+(i-(n-1)/2)*0.3,170,d*2.2,13+(evo?5:0),5+L,2.3,col);
       beep(150,0.2,'sawtooth',0.03,60); break; }
+    case 'brasas': {
+      const near = G.enemies.filter(e => (e.x-G.px)**2+(e.y-G.py)**2 < 380*380); if(!near.length) return;
+      const c = pick(near), R = (50 + 5*L + (evo?20:0)) * pb('size');
+      for(const e of G.enemies) if((e.x-c.x)**2+(e.y-c.y)**2 < (R+e.r)**2){ hurt(e,d); status(e,'burn',3+0.4*L+(evo?1.5:0),d*1.2); }
+      G.fx.push({k:'ring',x:c.x,y:c.y,r:6,max:R,life:0.4,t:0.4,col});
+      beep(220,0.12,'sawtooth',0.025,-40); break; }
+    case 'marea': {
+      const R = (110 + 14*L + (evo?40:0)) * pb('size');
+      for(const e of G.enemies) if((e.x-G.px)**2+(e.y-G.py)**2 < (R+e.r)**2){ hurt(e,d); status(e,'slow',2.5+0.3*L,evo?0.35:0.5); }
+      G.fx.push({k:'ring',x:G.px,y:G.py,r:12,max:R,life:0.5,t:0.5,col});
+      beep(320,0.14,'sine',0.03,-100); break; }
+    case 'raices': {
+      const near = G.enemies.filter(e => (e.x-G.px)**2+(e.y-G.py)**2 < 380*380); if(!near.length) return;
+      const c = pick(near), R = (60 + 6*L + (evo?20:0)) * pb('size');
+      for(const e of G.enemies) if((e.x-c.x)**2+(e.y-c.y)**2 < (R+e.r)**2){ hurt(e,d); status(e,'root',1+0.2*L+(evo?0.5:0)); }
+      G.fx.push({k:'ring',x:c.x,y:c.y,r:6,max:R,life:0.4,t:0.4,col});
+      beep(180,0.1,'triangle',0.03,40); break; }
+    case 'estatica': {
+      const R = (90 + 10*L + (evo?30:0)) * pb('size'); let n = 0;
+      for(const e of G.enemies) if((e.x-G.px)**2+(e.y-G.py)**2 < (R+e.r)**2){ hurt(e,d); status(e,'stun',0.6+0.1*L+(evo?0.3:0)); if(n++ < 3) G.fx.push({k:'bolt',x:e.x,y:e.y,life:0.15,t:0.15,col}); }
+      G.fx.push({k:'ring',x:G.px,y:G.py,r:10,max:R,life:0.3,t:0.3,col});
+      beep(700,0.08,'square',0.025,-300); break; }
+    case 'niebla': {
+      const R = (130 + 12*L + (evo?40:0)) * pb('size');
+      for(const e of G.enemies) if((e.x-G.px)**2+(e.y-G.py)**2 < (R+e.r)**2){ hurt(e,d); status(e,'shrink',3+0.5*L+(evo?1.5:0)); }
+      G.fx.push({k:'ring',x:G.px,y:G.py,r:12,max:R,life:0.6,t:0.6,col});
+      beep(140,0.2,'sine',0.03,-30); break; }
+    case 'ciclon': {
+      const near = G.enemies.filter(e => (e.x-G.px)**2+(e.y-G.py)**2 < 420*420); if(!near.length) return;
+      let c = near[0], best = -1;                                       // el centro del tornado va al enemigo con más vecinos
+      for(const a of near.slice(0,40)){ let n = 0; for(const b of near) if((a.x-b.x)**2+(a.y-b.y)**2 < 130*130) n++; if(n > best){ best = n; c = a; } }
+      const R = (90 + 8*L + (evo?30:0)) * pb('size'), t = 2.2 + 0.3*L + (evo?1.5:0);
+      G.tornados.push({x:c.x, y:c.y, R, t, life:t, d, tick:0});
+      beep(120,0.25,'sawtooth',0.03,80); break; }
     // 'orbita' es continua: se resuelve en updateOrbs()
   }
 }
@@ -451,15 +501,24 @@ function updateOrbs(dt){
     for(let i=0;i<n;i++){ const a = G.orbAng + i*Math.PI*2/n, ox = G.px+Math.cos(a)*R, oy = G.py+Math.sin(a)*R;
       m._orbs = m._orbs || []; m._orbs[i] = {x:ox,y:oy};
       for(const e of G.enemies){ if(e.orbT>0) continue;
-        if((e.x-ox)**2+(e.y-oy)**2 < (e.r+8)**2){ hurt(e,d); e.orbT = 0.35; const dd=Math.hypot(e.x-G.px,e.y-G.py)||1; e.kx+=(e.x-G.px)/dd*120; e.ky+=(e.y-G.py)/dd*120; } } }
+        if((e.x-ox)**2+(e.y-oy)**2 < (e.r+8)**2){ hurt(e,d,MOVES[m.id].type); e.orbT = 0.35; const dd=Math.hypot(e.x-G.px,e.y-G.py)||1; e.kx+=(e.x-G.px)/dd*120; e.ky+=(e.y-G.py)/dd*120; } } }
     m._orbs.length = n; }
 }
 
-function hurt(e, d){
+let curMT = null;                                  // tipo del movimiento en curso (para ventajas y debilidades)
+function hurt(e, d, mt, quiet){
+  if(mt === undefined) mt = curMT;
+  const ef = eff(mt, e.type); d *= ef;
   const crit = pl('critico') > 0 && Math.random() < 0.06*pl('critico'); if(crit) d *= 2;
-  e.hp -= d/eb(e,'res'); e.flash = 0.1; sfx.hit();
-  if(G.txt.length<40) G.txt.push({x:e.x+rnd(-6,6),y:e.y-e.r,s:String(Math.round(d))+(crit?'!':''),t:0.5});
+  e.hp -= d/eb(e,'res'); e.flash = 0.1;
+  if(!quiet){ sfx.hit();
+    if(G.txt.length<40) G.txt.push({x:e.x+rnd(-6,6),y:e.y-e.r,s:String(Math.round(d))+(crit?'!':'')+(ef>1?'↑':ef<1?'↓':''),t:0.5,c:ef>1?'#ffd93b':ef<1?'#9ab':null}); }
   if(e.hp<=0 && !e.dead) kill(e);
+}
+function dot(e, amt){ e.hp -= amt; if(e.hp<=0 && !e.dead) kill(e); }      // daño continuo (quemadura): sin sonido ni números
+function status(e, k, t, v){                        // slow | root | stun | burn | shrink; los jefes resisten
+  if(e.boss){ if(k==='root' || k==='stun') return; t *= 0.5; }
+  e[k] = Math.max(e[k]||0, t); if(v !== undefined) e[k+'V'] = v;
 }
 function kill(e){
   e.dead = true; G.kills++; countKill(e);
@@ -491,10 +550,12 @@ function spawn(dt){
   }
 }
 
-function playerHit(d){
+function playerHit(d, et){
   if(G.inv>0) return;
   if(pl('esquiva') > 0 && Math.random() < 0.05*pl('esquiva')){ G.inv = 0.3; if(G.txt.length<40) G.txt.push({x:G.px,y:G.py-20,s:'Esquiva',t:0.7}); return; }
-  G.hp -= d*mult().armor/pb('res'); G.inv = 0.6 + 0.12*pl('reflejos'); sfx.hurt();
+  const ef = eff(et, G.sp.type);
+  if(ef !== 1 && G.txt.length<40) G.txt.push({x:G.px,y:G.py-24,s:ef>1?'¡Débil!':'Resiste',t:0.7,c:ef>1?'#ff6a7d':'#9fe'});
+  G.hp -= d*ef*mult().armor/pb('res'); G.inv = 0.6 + 0.12*pl('reflejos'); sfx.hurt();
   G.fx.push({k:'flash',life:0.15,t:0.15});
   if(G.hp<=0) endRun();
 }
@@ -530,23 +591,33 @@ function update(dt){
     if(!e.disc && dist < 400){ e.disc = true; discover(e.id, e.name); }
     e.ph += dt*3; e.flash -= dt; e.orbT -= dt;
     const wob = Math.sin(e.ph)*0.25;
-    e.x += (dx/dist*e.spd*eb(e,'spd')*(1+wob*0.3) + e.kx)*dt; e.y += (dy/dist*e.spd*eb(e,'spd')*(1+wob*0.3) + e.ky)*dt;
+    for(const [k] of STATUS_COL) if(e[k] > 0) e[k] -= dt;
+    if(e.burn > 0) dot(e, e.burnV*dt);
+    const sm = (e.stun>0 || e.root>0) ? 0 : e.slow>0 ? (e.boss ? 0.75 : (e.slowV||0.5)) : 1, rm = e.shrink>0 ? 0.45 : 1;   // rm: alcance reducido
+    e.x += (dx/dist*e.spd*eb(e,'spd')*sm*(1+wob*0.3) + e.kx)*dt; e.y += (dy/dist*e.spd*eb(e,'spd')*sm*(1+wob*0.3) + e.ky)*dt;
     e.kx *= Math.pow(0.02, dt); e.ky *= Math.pow(0.02, dt);
-    if(dist < e.r+12) playerHit(e.dmg*eb(e,'dmg'));
-    if(e.shoots || e.boss){ e.shootT -= dt*eb(e,'rate');
-      if(e.shootT<=0 && dist<420){
-        if(e.boss){ e.shootT = 2.4; const n=14, o=Math.random()*6; for(let i=0;i<n;i++) ebul(e.x,e.y,o+i*Math.PI*2/n,130,12*eb(e,'dmg')); }
-        else { e.shootT = rnd(2,3.2); ebul(e.x,e.y,Math.atan2(dy,dx),140,8*eb(e,'dmg')); } } }
+    if(dist < (e.r+12)*rm) playerHit(e.dmg*eb(e,'dmg'), e.type);
+    if((e.shoots || e.boss) && !(e.stun>0)){ e.shootT -= dt*eb(e,'rate');
+      if(e.shootT<=0 && dist<420*rm){
+        if(e.boss){ e.shootT = 2.4; const n=14, o=Math.random()*6; for(let i=0;i<n;i++) ebul(e.x,e.y,o+i*Math.PI*2/n,130,12*eb(e,'dmg'),e.type,5*rm); }
+        else { e.shootT = rnd(2,3.2); ebul(e.x,e.y,Math.atan2(dy,dx),140,8*eb(e,'dmg'),e.type,5*rm); } } }
   }
+  // tornados: arrastran a los enemigos hacia su centro y los dañan a intervalos
+  for(const tn of g.tornados){ tn.t -= dt; tn.tick -= dt; const hit = tn.tick <= 0; if(hit) tn.tick = 0.45;
+    for(const e of g.enemies){ const dx = tn.x-e.x, dy = tn.y-e.y, dist = Math.hypot(dx,dy);
+      if(dist > tn.R*1.8) continue;
+      if(dist > 8){ const pull = e.boss ? 60 : 210; e.x += dx/dist*pull*dt; e.y += dy/dist*pull*dt; }
+      if(hit && dist < tn.R) hurt(e, tn.d*0.5, 'dragon', true); } }
+  g.tornados = g.tornados.filter(t => t.t>0);
   // proyectiles propios
   for(const p of g.proj){
     p.x += p.vx*dt; p.y += p.vy*dt; p.life -= dt;
     for(const e of g.enemies){ if(e.dead || p.hit.includes(e)) continue;
-      if((e.x-p.x)**2+(e.y-p.y)**2 < (e.r+p.r)**2){ hurt(e,p.dmg); p.hit.push(e); p.pierce--; if(p.pierce<=0){ p.life=0; break; } } }
+      if((e.x-p.x)**2+(e.y-p.y)**2 < (e.r+p.r)**2){ hurt(e,p.dmg,p.mt); p.hit.push(e); p.pierce--; if(p.pierce<=0){ p.life=0; break; } } }
   }
   // balas enemigas
   for(const b of g.ebul){ b.x+=b.vx*dt; b.y+=b.vy*dt; b.life-=dt;
-    if((b.x-g.px)**2+(b.y-g.py)**2 < (b.r+10)**2){ playerHit(b.dmg); b.life=0; } }
+    if((b.x-g.px)**2+(b.y-g.py)**2 < (b.r+10)**2){ playerHit(b.dmg, b.type); b.life=0; } }
   // gemas / monedas con imán
   const R = 60*m.mag;
   for(const gm of g.gems){ const dx=g.px-gm.x, dy=g.py-gm.y, d=Math.hypot(dx,dy);
@@ -564,7 +635,7 @@ function update(dt){
   g.cam.x += (g.px-g.cam.x)*Math.min(1, dt*8); g.cam.y += (g.py-g.cam.y)*Math.min(1, dt*8);
   if(g.pending.length && !g.over) openLevelUp();
 }
-function ebul(x,y,a,s,dmg){ G.ebul.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,r:5,dmg,life:5}); }
+function ebul(x,y,a,s,dmg,type,life=5){ G.ebul.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,r:5,dmg,life,type}); }
 
 /* ---------- Subida de nivel ---------- */
 let curOffer = null;
@@ -597,8 +668,8 @@ function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.fl
 function describe(o){
   const tag = id => { const t = TYPES[MOVES[id].type]; return `<span class="tag" style="background:${t.c}">${t.n}</span>`; };
   switch(o.k){
-    case 'up':   return `<b>${moveName(o.m)}</b>${tag(o.m.id)}<small>Nivel ${o.m.lvl} → ${o.m.lvl+1}${o.m.lvl+1>=5?' · ¡EVOLUCIONA!':''}</small>`;
-    case 'new':  return `<b>${MOVES[o.id].name}</b>${tag(o.id)}<small>${MOVES[o.id].desc}</small>`;
+    case 'up':   return `<b>${moveName(o.m)}</b>${tag(o.m.id)}<small>Nivel ${o.m.lvl} → ${o.m.lvl+1}${o.m.lvl+1>=5?' · ¡EVOLUCIONA!':''}<br>${MOVES[o.m.id].desc}</small>`;
+    case 'new':  return `<b>${MOVES[o.id].name}</b>${tag(o.id)}<small>${MOVES[o.id].desc}<br>${chartTxt(MOVES[o.id].type)}</small>`;
     case 'heal': return `<b>Cura</b><small>Recupera el 40% de la vida</small>`;
     case 'pas':  { const ps = PASSIVES[o.id], br = BRANCHES[ps.branch], L = pl(o.id);
       const lock = L===0 && !Object.keys(G.pas).some(i => PASSIVES[i].branch===ps.branch) ? ` · Bloquea ${BRANCHES[br.opp].n}` : '';
@@ -685,6 +756,7 @@ function draw(){
     if(e.flash>0){ ctx.globalCompositeOperation='lighter'; ctx.globalAlpha=0.7; ctx.drawImage(s,-sz/2,-sz/2,sz,sz); }
     ctx.restore();
     if(e.boss || e.hp<e.maxhp){ const w = e.boss?80:e.r*2; ctx.fillStyle='#000a'; ctx.fillRect(e.x-w/2,e.y-sz/2-8,w,4); ctx.fillStyle=e.boss?'#ff4d6d':'#e04'; ctx.fillRect(e.x-w/2,e.y-sz/2-8,w*Math.max(0,e.hp/e.maxhp),4); }
+    { let n = 0; for(const [k,c] of STATUS_COL) if(e[k] > 0){ ctx.fillStyle = c; ctx.fillRect(e.x-9+n*7, e.y+sz/2+1, 5, 5); n++; } }
   }
   // orbes
   for(const m of flat()) if(m.id==='orbita' && m._orbs) for(const o of m._orbs){ ctx.fillStyle=TYPES.sombra.c; ctx.beginPath(); ctx.arc(o.x,o.y,8,0,7); ctx.fill(); ctx.fillStyle='#d9b8ff'; ctx.beginPath(); ctx.arc(o.x-2,o.y-2,3,0,7); ctx.fill(); }
@@ -698,13 +770,16 @@ function draw(){
   // proyectiles
   for(const p of g.proj){ ctx.fillStyle=p.col; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,7); ctx.fill(); ctx.fillStyle='#fff8'; ctx.beginPath(); ctx.arc(p.x-p.r*0.3,p.y-p.r*0.3,p.r*0.4,0,7); ctx.fill(); }
   for(const b of g.ebul){ ctx.fillStyle='#ff4d6d'; ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,7); ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=1; ctx.stroke(); }
+  // tornados
+  for(const tn of g.tornados){ ctx.strokeStyle = TYPES.dragon.c; ctx.lineWidth = 3;
+    for(let i=0;i<4;i++){ const rr = tn.R*(0.25+0.25*i), a = g.t*(5-i)+i; ctx.globalAlpha = Math.min(1, tn.t*2)*0.75; ctx.beginPath(); ctx.arc(tn.x,tn.y,rr,a,a+2.4); ctx.stroke(); } ctx.globalAlpha = 1; }
   // efectos
   for(const f of g.fx){
     if(f.k==='ring'){ const k = 1-f.t/f.life; ctx.strokeStyle=f.col; ctx.globalAlpha=1-k; ctx.lineWidth=6; ctx.beginPath(); ctx.arc(f.x,f.y,f.r+(f.max-f.r)*k,0,7); ctx.stroke(); ctx.globalAlpha=1; }
     if(f.k==='bolt'){ ctx.strokeStyle=f.col; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(f.x+rnd(-8,8),f.y-200); ctx.lineTo(f.x+rnd(-10,10),f.y-100); ctx.lineTo(f.x+rnd(-10,10),f.y-40); ctx.lineTo(f.x,f.y); ctx.stroke(); }
   }
   ctx.font = 'bold 12px ui-monospace,monospace'; ctx.textAlign='center';
-  for(const x of g.txt){ ctx.globalAlpha=Math.min(1,x.t*3); ctx.fillStyle='#000'; ctx.fillText(x.s,x.x+1,x.y+1); ctx.fillStyle='#fff'; ctx.fillText(x.s,x.x,x.y); } ctx.globalAlpha=1;
+  for(const x of g.txt){ ctx.globalAlpha=Math.min(1,x.t*3); ctx.fillStyle='#000'; ctx.fillText(x.s,x.x+1,x.y+1); ctx.fillStyle=x.c||'#fff'; ctx.fillText(x.s,x.x,x.y); } ctx.globalAlpha=1;
 
   drawHUD();
 }
@@ -817,7 +892,7 @@ function panelDex(tab='c'){
     if(!ok){ card.insertAdjacentHTML('beforeend', '<b>???</b><small>Sin descubrir</small>'); }
     else card.insertAdjacentHTML('beforeend', `<b>${d.name}${e.shiny?' ✨':''}</b>
       <span><span class="tag" style="background:${t.c}">${t.n}</span><span class="tag" style="background:#ddd">${d.role}</span></span>
-      <small>Especialidad: ${TYPE_BUFF[d.type].label} (×${MAP_BUFF} en su mapa)<br>Vida ${d.hp} · Vel ${d.spd}<br>${d.note}</small>
+      <small>Especialidad: ${TYPE_BUFF[d.type].label} (×${MAP_BUFF} en su mapa)<br>${chartTxt(d.type)}<br>Vida ${d.hp} · Vel ${d.spd}<br>${d.note}</small>
       <small>${DESC[d.id]}</small>${d.role==='Compañero' ? '' : `<small>Derrotados: <b>${e.kills||0}</b></small>`}`);
     box.appendChild(card);
   });
@@ -844,7 +919,8 @@ function panelGuide(){
     <p class="hint" style="text-align:left;font-size:14px">Recoge gemas azules para subir de nivel y elige mejoras. Al nivel 5 de un movimiento evoluciona.
     Niveles 5, 15, 25…: objeto (sólo uno). Niveles 10, 20, 30…: Vínculo, que une dos movimientos en un hueco.
     Cada 4 minutos aparece un legendario. Cada 75 segundos cambia el mapa: las criaturas del tipo del mapa (tú también) ganan ×1.2 en su especialidad. Mira el Criaturario para ver todas.
-    Además de movimientos hay pasivas, que mejoran sin disparar nada. Se agrupan en ramas (Agilidad, Fortaleza, Poder, Ingenio) y las opuestas se excluyen: al coger una de Agilidad ya no salen las de Fortaleza, y al coger una de Poder ya no salen las de Ingenio. Puedes llevar 4 pasivas, hasta nivel 5. Las monedas sirven para mejoras permanentes y el Gacha.</p>`);
+    Además de movimientos hay pasivas, que mejoran sin disparar nada. Se agrupan en ramas (Agilidad, Fortaleza, Poder, Ingenio) y las opuestas se excluyen: al coger una de Agilidad ya no salen las de Fortaleza, y al coger una de Poder ya no salen las de Ingenio. Puedes llevar 4 pasivas, hasta nivel 5.
+    Cada tipo es fuerte contra uno y débil contra otro (Fuego > Planta > Agua > Fuego y Eléctrico > Dragón > Sombra > Eléctrico): ×1.3 a favor y ×0.75 en contra, tanto en tus ataques como en los suyos. Los movimientos de control aplican un estado a los hostiles (puntitos de color bajo ellos): Marea los ralentiza, Raíces los inmoviliza, Estática los paraliza, Brasas los quema, Niebla reduce su alcance y Ciclón los arrastra y junta. Los legendarios resisten: ni se inmovilizan ni se paralizan. Las monedas sirven para mejoras permanentes y el Gacha.</p>`);
 }
 function setSound(v){ SAVE.sound = v; persist(); $('#bSound').textContent = 'Sonido: ' + (v?'sí':'no'); $('#bSnd2').textContent = 'Sonido: ' + (v?'sí':'no'); }
 
