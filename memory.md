@@ -14,6 +14,12 @@ Regla: al **finalizar cada tarea** se añade una entrada arriba (la más recient
 
 ## Entradas
 
+### 2026-10-21 — Mejora 2: pasivas con ramas excluyentes y 3 movimientos nuevos
+- **Qué cambió:** 12 pasivas en 4 ramas (Agilidad, Fortaleza, Poder, Ingenio) con exclusión por parejas, y movimientos Esporas, Zarpazo y Cometa.
+- **Ficheros:** `index.html` (tablas `BRANCHES`/`PASSIVES`, `mult`, `offerOptions`, `chooseOffer`, `fire`, HUD), `scripts/smoke.js`, `README.md`, `CHANGELOG.md`
+- **Decisiones:** interpreté «si sale una de agilidad que no salga de fortaleza» como bloqueo de la rama opuesta durante la partida y sin mezcla en la misma oferta; se quitaron Zapatillas/Entrenamiento/Atracción genéricas porque saltaban las ramas. Revisar si el usuario quería otra regla.
+- **Pendiente / siguiente paso:** probar en navegador (puerto temporal 8118); ajustar valores por nivel; sincronizar y commitear solo cuando lo ordene.
+
 ### 2026-10-21 — Mejora 1: mapas con buff por tipo y Criaturario
 - **Qué cambió:** 6 mapas rotativos (cada 75 s) que dan ×1.2 en su especialidad a las criaturas de su tipo; hostiles y legendarios con tipo; enciclopedia «Criaturario» con desbloqueo por descubrimiento.
 - **Ficheros:** `index.html` (secciones 1 datos, 2 guardado, 6 lógica, 7 dibujo, 8 menús), `scripts/smoke.js`, `README.md`, `CHANGELOG.md`

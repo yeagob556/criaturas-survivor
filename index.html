@@ -123,7 +123,31 @@ const MOVES = {
   trueno: {name:'Impactrueno', evo:'Rayo',           type:'electrico', cd:1.40, dmg:20, desc:'Rayos sobre enemigos al azar'},
   orbita: {name:'Tinieblas',   evo:'Esferas Umbrías',type:'sombra',    cd:1,    dmg:9,  desc:'Esferas que giran a tu alrededor'},
   aliento:{name:'Dracoaliento',evo:'Dracoaliento Máx',type:'dragon',   cd:1.30, dmg:10, desc:'Abanico de proyectiles'},
+  esporas:{name:'Esporas',     evo:'Esporas Letales',type:'planta',    cd:1.80, dmg:15, desc:'Explosión de esporas sobre un grupo de enemigos'},
+  zarpazo:{name:'Zarpazo',     evo:'Zarpazo Umbrío', type:'sombra',    cd:0.90, dmg:13, desc:'Tajo en abanico hacia delante'},
+  cometa: {name:'Cometa',      evo:'Meteoro',        type:'fuego',     cd:2.00, dmg:11, desc:'Bola lenta y enorme que atraviesa todo'},
 };
+// Pasivas: mejoran siempre sin disparar nada. Cada una pertenece a una rama y las ramas se excluyen por parejas:
+// al coger la primera pasiva de una rama, su rama opuesta queda bloqueada el resto de la partida (y nunca sale en las ofertas).
+const BRANCHES = {
+  agilidad: {n:'Agilidad', c:'#4de3b0', opp:'fortaleza'}, fortaleza:{n:'Fortaleza', c:'#e8a14a', opp:'agilidad'},
+  poder:    {n:'Poder',    c:'#ff5f6d', opp:'ingenio'},   ingenio:  {n:'Ingenio',   c:'#6ec6ff', opp:'poder'},
+};
+const PASSIVES = {
+  pies:    {branch:'agilidad', name:'Pies Ligeros',   desc:'+7% velocidad por nivel'},
+  esquiva: {branch:'agilidad', name:'Esquiva',        desc:'+5% de esquivar un golpe por nivel'},
+  reflejos:{branch:'agilidad', name:'Reflejos',       desc:'+0,12 s de invulnerabilidad tras un golpe por nivel'},
+  piel:    {branch:'fortaleza',name:'Piel Dura',      desc:'-6% de daño recibido por nivel'},
+  regen:   {branch:'fortaleza',name:'Regeneración',   desc:'+0,5 de vida por segundo por nivel'},
+  vigor:   {branch:'fortaleza',name:'Vigor',          desc:'+8% de vida máxima por nivel'},
+  garra:   {branch:'poder',    name:'Garra Afilada',  desc:'+8% de daño por nivel'},
+  critico: {branch:'poder',    name:'Golpe Crítico',  desc:'+6% de probabilidad de crítico (×2) por nivel'},
+  ritmo:   {branch:'poder',    name:'Concentración',  desc:'-6% de tiempo de recarga por nivel'},
+  sabio:   {branch:'ingenio',  name:'Sabiduría',      desc:'+8% de experiencia por nivel'},
+  codicia: {branch:'ingenio',  name:'Codicia',        desc:'+15% de monedas por nivel'},
+  olfato:  {branch:'ingenio',  name:'Olfato',         desc:'+15% de radio de recogida por nivel'},
+};
+const PAS_MAX = 5, PAS_SLOTS = 4;
 const ITEMS = {
   iman:   {name:'Imán',          desc:'Recoges desde mucho más lejos'},
   bayas:  {name:'Bayas',         desc:'Regeneras vida poco a poco'},
@@ -289,12 +313,15 @@ let G = null;            // estado de la run (null en menús)
 const keys = {};
 let touch = null;        // joystick táctil {ox,oy,x,y}
 
-function mult(){          // multiplicadores permanentes + objeto
+const pl = id => (G && G.pas && G.pas[id]) || 0;                       // nivel de una pasiva
+const branchLocked = b => Object.keys(G.pas).some(id => PASSIVES[id].branch === BRANCHES[b].opp);
+function mult(){          // multiplicadores permanentes + objeto + pasivas
   const u = SAVE.up, it = G.item;
   return {
-    hp: 1+0.10*u.hp, dmg: (1+0.06*u.dmg) * (it==='foco'?1.2:1) * (G.shiny?1.1:1),
-    spd: 1+0.03*u.spd, mag: (1+0.12*u.mag) * (it==='iman'?1.6:1) * G.magBonus,
-    coin: 1+0.10*u.coin, cd: it==='cinta'?0.82:1, armor: it==='coraza'?0.8:1,
+    hp: 1+0.10*u.hp, dmg: (1+0.06*u.dmg) * (it==='foco'?1.2:1) * (G.shiny?1.1:1) * (1+0.08*pl('garra')),
+    spd: (1+0.03*u.spd) * (1+0.07*pl('pies')), mag: (1+0.12*u.mag) * (it==='iman'?1.6:1) * G.magBonus * (1+0.15*pl('olfato')),
+    coin: (1+0.10*u.coin) * (1+0.15*pl('codicia')), cd: (it==='cinta'?0.82:1) * (1-0.06*pl('ritmo')),
+    armor: (it==='coraza'?0.8:1) * (1-0.06*pl('piel')),
   };
 }
 
@@ -304,7 +331,7 @@ function newRun(){
   G = {
     sp, shiny, t:0, over:false, paused:false, locked:false,
     px:0, py:0, face:1, inv:0, maxhp:0, hp:0, spdBonus:1, magBonus:1, dmgBonus:1,
-    map:null, mapT:MAP_EVERY, newDisc:[], baseMax:0, lvl:1, xp:0, pending:[], kills:0, coins:0, rerolls:1, item:null,
+    map:null, mapT:MAP_EVERY, newDisc:[], baseMax:0, lvl:1, xp:0, pending:[], kills:0, coins:0, rerolls:1, item:null, pas:{},
     moves:[{id:sp.move, lvl:1, t:0.3, links:[]}],   // cada elemento = un hueco; links = movimientos unidos (Vínculo)
     sel:0, enemies:[], proj:[], ebul:[], gems:[], fx:[], txt:[], spawnAcc:0, nextBoss:180, bossN:0, banner:null, orbAng:0, cam:{x:0,y:0},
   };
@@ -323,10 +350,14 @@ function syncEnemy(e){                                // vida y tamaño se aplic
   if(e.hpBuf !== th){ const r = th/e.hpBuf; e.hp *= r; e.maxhp *= r; e.hpBuf = th; }
   if(e.rBuf !== tr){ e.r *= tr/e.rBuf; e.rBuf = tr; }
 }
+function recalcMax(ratio){                              // vida máxima = base × Vigor × buff del mapa; mantiene la proporción de vida
+  if(ratio === undefined) ratio = G.maxhp > 0 ? G.hp/G.maxhp : 1;
+  G.maxhp = Math.round(G.baseMax * (1+0.08*pl('vigor')) * pb('hp')); G.hp = G.maxhp*ratio;
+}
 function setMap(m, first){
   G.map = m; G.mapT = MAP_EVERY;
   const ratio = G.maxhp > 0 ? G.hp/G.maxhp : 1;       // la vida máxima de la criatura de ese tipo sube/baja con el mapa
-  G.maxhp = Math.round(G.baseMax * pb('hp')); G.hp = G.maxhp*ratio;
+  recalcMax(ratio);
   for(const e of G.enemies) syncEnemy(e);
   if(!SAVE.dex.m[m.id]){ SAVE.dex.m[m.id] = true; G.newDisc.push(m.name); persist(); }
   if(!first){
@@ -391,6 +422,24 @@ function fire(m, focus){
       const n = 3 + Math.floor(L/2) + (evo?2:0), spread = 0.7 + 0.06*L;
       for(let i=0;i<n;i++) shoot(G.px,G.py,baseAng+(i-(n-1)/2)*(spread/Math.max(1,n-1)),300,d,5,2,0.9,col);
       beep(260,0.12,'sawtooth',0.025,-100); break; }
+    case 'esporas': {
+      const near = G.enemies.filter(e => (e.x-G.px)**2+(e.y-G.py)**2 < 380*380); if(!near.length) return;
+      const c = pick(near), R = (46 + 6*L + (evo?20:0)) * pb('size');
+      for(const e of G.enemies) if((e.x-c.x)**2+(e.y-c.y)**2 < (R+e.r)**2) hurt(e,d);
+      G.fx.push({k:'ring',x:c.x,y:c.y,r:6,max:R,life:0.35,t:0.35,col});
+      beep(300,0.1,'triangle',0.03,-80); break; }
+    case 'zarpazo': {
+      const reach = (80 + 8*L + (evo?30:0)) * pb('size'), half = evo ? 1.2 : 0.9;
+      for(const e of G.enemies){ const dx=e.x-G.px, dy=e.y-G.py, dist=Math.hypot(dx,dy)||1;
+        let da = Math.atan2(dy,dx) - baseAng; da = Math.atan2(Math.sin(da), Math.cos(da));
+        if(dist < reach+e.r && Math.abs(da) < half){ hurt(e,d); e.kx+=dx/dist*160; e.ky+=dy/dist*160; } }
+      G.fx.push({k:'ring',x:G.px+Math.cos(baseAng)*reach*0.5,y:G.py+Math.sin(baseAng)*reach*0.5,r:6,max:reach*0.6,life:0.2,t:0.2,col});
+      beep(240,0.06,'sawtooth',0.03,-120); break; }
+    case 'cometa': {
+      if(!t) return;
+      const n = evo ? 2 : 1;
+      for(let i=0;i<n;i++) shoot(G.px,G.py,baseAng+(i-(n-1)/2)*0.3,170,d*2.2,13+(evo?5:0),5+L,2.3,col);
+      beep(150,0.2,'sawtooth',0.03,60); break; }
     // 'orbita' es continua: se resuelve en updateOrbs()
   }
 }
@@ -407,8 +456,9 @@ function updateOrbs(dt){
 }
 
 function hurt(e, d){
+  const crit = pl('critico') > 0 && Math.random() < 0.06*pl('critico'); if(crit) d *= 2;
   e.hp -= d/eb(e,'res'); e.flash = 0.1; sfx.hit();
-  if(G.txt.length<40) G.txt.push({x:e.x+rnd(-6,6),y:e.y-e.r,s:String(Math.round(d)),t:0.5});
+  if(G.txt.length<40) G.txt.push({x:e.x+rnd(-6,6),y:e.y-e.r,s:String(Math.round(d))+(crit?'!':''),t:0.5});
   if(e.hp<=0 && !e.dead) kill(e);
 }
 function kill(e){
@@ -443,13 +493,14 @@ function spawn(dt){
 
 function playerHit(d){
   if(G.inv>0) return;
-  G.hp -= d*mult().armor/pb('res'); G.inv = 0.6; sfx.hurt();
+  if(pl('esquiva') > 0 && Math.random() < 0.05*pl('esquiva')){ G.inv = 0.3; if(G.txt.length<40) G.txt.push({x:G.px,y:G.py-20,s:'Esquiva',t:0.7}); return; }
+  G.hp -= d*mult().armor/pb('res'); G.inv = 0.6 + 0.12*pl('reflejos'); sfx.hurt();
   G.fx.push({k:'flash',life:0.15,t:0.15});
   if(G.hp<=0) endRun();
 }
 
 function addXP(v){
-  G.xp += v;
+  G.xp += v * (1+0.08*pl('sabio'));
   while(G.xp >= xpNeed(G.lvl)){ G.xp -= xpNeed(G.lvl); G.lvl++; G.pending.push(G.lvl); G.hp = Math.min(G.maxhp, G.hp + G.maxhp*0.1); }
 }
 const xpNeed = l => 6 + l*5;
@@ -466,6 +517,7 @@ function update(dt){
   const spd = g.sp.spd * m.spd * pb('spd');
   g.px += ix*spd*dt; g.py += iy*spd*dt; if(ix) g.face = ix>0?1:-1;
   if(g.item==='bayas') g.hp = Math.min(g.maxhp, g.hp + 1.5*dt);
+  if(pl('regen')) g.hp = Math.min(g.maxhp, g.hp + 0.5*pl('regen')*dt);
   // ataques
   g.moves.forEach((gr, i) => { gr.t -= dt;
     if(gr.t <= 0){ const focus = (i===g.sel); fire(gr, focus); for(const l of gr.links) fire(l, focus);
@@ -527,8 +579,19 @@ function offerOptions(lvl){
   }
   for(const gr of G.moves) for(const m of [gr,...gr.links]) if(m.lvl<5) o.push({k:'up', m});
   if(G.moves.length < 4) for(const id of Object.keys(MOVES)) if(!flat().some(m => m.id===id)) o.push({k:'new', id});
-  o.push({k:'heal'},{k:'spd'},{k:'mag'},{k:'dmg'});
-  return {kind:'normal', opts:shuffle(o).slice(0,3)};
+  o.push({k:'heal'});
+  // pasivas: mejorar las que ya tienes, o una nueva si quedan huecos y su rama no está bloqueada
+  const held = Object.keys(G.pas);
+  for(const id of Object.keys(PASSIVES)){ const L = pl(id);
+    if(L >= PAS_MAX) continue;
+    if(L === 0 && (held.length >= PAS_SLOTS || branchLocked(PASSIVES[id].branch))) continue;
+    o.push({k:'pas', id}); }
+  // en una misma oferta nunca salen dos pasivas de ramas opuestas
+  const out = [];
+  for(const c of shuffle(o)){
+    if(c.k==='pas' && out.some(x => x.k==='pas' && PASSIVES[x.id].branch === BRANCHES[PASSIVES[c.id].branch].opp)) continue;
+    out.push(c); if(out.length === 3) break; }
+  return {kind:'normal', opts:out};
 }
 function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 function describe(o){
@@ -537,9 +600,9 @@ function describe(o){
     case 'up':   return `<b>${moveName(o.m)}</b>${tag(o.m.id)}<small>Nivel ${o.m.lvl} → ${o.m.lvl+1}${o.m.lvl+1>=5?' · ¡EVOLUCIONA!':''}</small>`;
     case 'new':  return `<b>${MOVES[o.id].name}</b>${tag(o.id)}<small>${MOVES[o.id].desc}</small>`;
     case 'heal': return `<b>Cura</b><small>Recupera el 40% de la vida</small>`;
-    case 'spd':  return `<b>Zapatillas</b><small>+8% velocidad</small>`;
-    case 'mag':  return `<b>Atracción</b><small>+25% radio de recogida</small>`;
-    case 'dmg':  return `<b>Entrenamiento</b><small>+8% daño a todo</small>`;
+    case 'pas':  { const ps = PASSIVES[o.id], br = BRANCHES[ps.branch], L = pl(o.id);
+      const lock = L===0 && !Object.keys(G.pas).some(i => PASSIVES[i].branch===ps.branch) ? ` · Bloquea ${BRANCHES[br.opp].n}` : '';
+      return `<b>${ps.name}</b><span class="tag" style="background:${br.c};color:#111">${br.n}</span><small>${L?`Nivel ${L} → ${L+1}`:'Nueva pasiva'}${lock}<br>${ps.desc}</small>`; }
     case 'item': return `<b>${ITEMS[o.id].name}</b><small>${ITEMS[o.id].desc}</small>`;
     case 'link': return `<b>${moveName(G.moves[o.a])} + ${moveName(G.moves[o.b])}</b><small>Se lanzan a la vez y ocupan un solo hueco</small>`;
   }
@@ -565,9 +628,10 @@ function chooseOffer(o){
     case 'up': o.m.lvl++; break;
     case 'new': G.moves.push({id:o.id, lvl:1, t:0.3, links:[]}); break;
     case 'heal': G.hp = Math.min(G.maxhp, G.hp + G.maxhp*0.4); break;
-    case 'spd': G.spdBonus *= 1.08; G.sp = {...G.sp, spd:G.sp.spd*1.08}; break;
-    case 'mag': G.magBonus *= 1.25; break;
-    case 'dmg': G.dmgBonus *= 1.08; break;
+    case 'pas': { const ps = PASSIVES[o.id], first = !Object.keys(G.pas).some(i => PASSIVES[i].branch===ps.branch);
+      G.pas[o.id] = pl(o.id) + 1;
+      if(o.id==='vigor') recalcMax();
+      if(first) G.banner = {s:`Rama ${BRANCHES[ps.branch].n}: ${BRANCHES[BRANCHES[ps.branch].opp].n} bloqueada`, t:3}; break; }
     case 'item': G.item = o.id; break;
     case 'link': { const A = G.moves[o.a], B = G.moves[o.b]; A.links.push(B, ...B.links); B.links = []; G.moves.splice(o.b,1); G.sel = 0; break; }
   }
@@ -587,6 +651,7 @@ function endRun(){
   $('#oBody').innerHTML =
     `<div class="stat"><span>Tiempo</span><b>${fmtT(G.t)}</b></div><div class="stat"><span>Nivel</span><b>${G.lvl}</b></div>` +
     `<div class="stat"><span>Derrotados</span><b>${G.kills}</b></div><div class="stat"><span>Monedas ganadas</span><b class="coin">+${earned}</b></div>` +
+    (Object.keys(G.pas).length ? `<div class="stat"><span>Pasivas</span><b>${Object.keys(G.pas).map(i => PASSIVES[i].name+' '+G.pas[i]).join(', ')}</b></div>` : '') +
     (G.newDisc.length ? `<div class="stat"><span>Descubierto</span><b>${G.newDisc.join(', ')}</b></div>` : '');
   setTimeout(() => $('#ovOver').classList.add('on'), 700);
 }
@@ -673,6 +738,9 @@ function drawHUD(){
     if(gr.links.length){ ctx.fillStyle='#fff'; ctx.fillText('+'+gr.links.length,x+28,y+13); }
     ctx.font='bold 10px ui-monospace,monospace'; ctx.fillText(MOVES[gr.id].name.slice(0,7),x+20,y+23);
   });
+  Object.keys(g.pas).forEach((id,i) => { const ps = PASSIVES[id], x = 10+i*78, y = h-86;
+    ctx.fillStyle = BRANCHES[ps.branch].c; ctx.fillRect(x,y,74,16); ctx.fillStyle='#111'; ctx.textAlign='left'; ctx.font='bold 10px ui-monospace,monospace';
+    ctx.fillText(ps.name.slice(0,9)+' '+g.pas[id], x+3, y+12); });
   if(g.item){ const x = 10+4*50+8, y = h-66; ctx.fillStyle='#000a'; ctx.fillRect(x-2,y-2,84,44); ctx.fillStyle='#fff'; ctx.textAlign='left'; ctx.font='bold 11px ui-monospace,monospace'; ctx.fillText('Objeto',x+2,y+12); ctx.fillStyle='#ffd93b'; ctx.fillText(ITEMS[g.item].name,x+2,y+30); }
   if(g.banner){ ctx.textAlign='center'; ctx.font='bold 24px ui-monospace,monospace'; ctx.fillStyle='#000'; ctx.fillText(g.banner.s,w/2+1,91); ctx.fillStyle='#ff6a7d'; ctx.fillText(g.banner.s,w/2,90); }
   // joystick táctil
@@ -775,7 +843,8 @@ function panelGuide(){
     <div class="stat"><span>Pausa</span><b>Esc</b></div>
     <p class="hint" style="text-align:left;font-size:14px">Recoge gemas azules para subir de nivel y elige mejoras. Al nivel 5 de un movimiento evoluciona.
     Niveles 5, 15, 25…: objeto (sólo uno). Niveles 10, 20, 30…: Vínculo, que une dos movimientos en un hueco.
-    Cada 4 minutos aparece un legendario. Cada 75 segundos cambia el mapa: las criaturas del tipo del mapa (tú también) ganan ×1.2 en su especialidad. Mira el Criaturario para ver todas. Las monedas sirven para mejoras permanentes y el Gacha.</p>`);
+    Cada 4 minutos aparece un legendario. Cada 75 segundos cambia el mapa: las criaturas del tipo del mapa (tú también) ganan ×1.2 en su especialidad. Mira el Criaturario para ver todas.
+    Además de movimientos hay pasivas, que mejoran sin disparar nada. Se agrupan en ramas (Agilidad, Fortaleza, Poder, Ingenio) y las opuestas se excluyen: al coger una de Agilidad ya no salen las de Fortaleza, y al coger una de Poder ya no salen las de Ingenio. Puedes llevar 4 pasivas, hasta nivel 5. Las monedas sirven para mejoras permanentes y el Gacha.</p>`);
 }
 function setSound(v){ SAVE.sound = v; persist(); $('#bSound').textContent = 'Sonido: ' + (v?'sí':'no'); $('#bSnd2').textContent = 'Sonido: ' + (v?'sí':'no'); }
 

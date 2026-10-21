@@ -18,6 +18,7 @@ Abre `index.html` en el navegador (o sírvelo con cualquier servidor estático).
 - Un movimiento al nivel 5 **evoluciona**. Niveles 5, 15, 25…: un objeto (solo uno). Niveles 10, 20, 30…: **Vínculo**, que une dos movimientos en un hueco.
 - Cada 4 minutos llega un jefe legendario (de un tipo al azar).
 - **Mapas:** hay 6 (uno por tipo) y cambian cada 75 s. Las criaturas del tipo del mapa, hostiles o tu compañero, reciben **×1.2 en su especialidad**: Fuego daño · Agua resistencia · Planta vida máxima · Eléctrico velocidad · Sombra cadencia · Dragón tamaño y alcance. Un aro de color marca a las que están potenciadas. Se ajusta en `MAP_BUFF`, `MAP_EVERY` y `TYPE_BUFF`.
+- **Pasivas y ramas:** además de movimientos hay 12 pasivas en 4 ramas (Agilidad, Fortaleza, Poder, Ingenio; hasta nivel 5, 4 por partida). Las ramas opuestas se excluyen (Agilidad ⟂ Fortaleza, Poder ⟂ Ingenio): al coger una, la opuesta deja de salir. Tablas `BRANCHES` y `PASSIVES`. También hay 3 movimientos nuevos (Esporas, Zarpazo, Cometa).
 - **Criaturario:** enciclopedia en el menú. Hostiles y legendarios se descubren al verlos de cerca, los compañeros al conseguirlos y los mapas al visitarlos; muestra especialidad, estadísticas, descripción y bajas.
 - Las monedas compran mejoras permanentes y tiradas de Gacha (compañeros nuevos y versiones shiny, +10% daño).
 - El progreso se guarda en `localStorage` del navegador.
