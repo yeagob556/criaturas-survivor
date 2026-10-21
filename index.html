@@ -32,6 +32,9 @@
   .stat{display:flex;justify-content:space-between;border-bottom:1px solid var(--panel2);padding:5px 0}
   .coin{color:var(--acc)}
   .locked{filter:grayscale(1) brightness(.5)}
+  .sil{filter:brightness(0);opacity:.55}
+  .dcard{background:var(--panel2);border:2px solid #52408a;border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:4px;align-items:center;text-align:center;font-size:13px}
+  .dcard small{color:var(--mut)} .dcard b{color:var(--acc)}
   .sel{border-color:var(--acc)!important}
   .hint{color:var(--mut);font-size:12px;text-align:center;margin-top:10px}
 </style>
@@ -50,6 +53,7 @@
     <button id="bUp">Mejoras</button>
     <button id="bGacha">Gacha</button>
     <button id="bStats">Estadísticas</button>
+    <button id="bDex">Criaturario</button>
     <button id="bGuide">Guía</button>
     <button id="bSound">Sonido: sí</button>
   </div>
@@ -128,10 +132,12 @@ const ITEMS = {
   coraza: {name:'Coraza',        desc:'Recibes 20% menos de daño'},
 };
 const ENEMY_TYPES = [
-  {id:'rata',  hp:18, spd:55, dmg:6,  r:10, hue:290, seed:3,  xp:1, from:0},
-  {id:'murci', hp:14, spd:95, dmg:5,  r:9,  hue:200, seed:8,  xp:1, from:60},
-  {id:'golem', hp:90, spd:38, dmg:12, r:16, hue:30,  seed:15, xp:3, from:150},
-  {id:'brujo', hp:40, spd:60, dmg:8,  r:12, hue:330, seed:21, xp:2, from:240, shoots:true},
+  {id:'hojarrata',   name:'Hojarrata',   type:'planta',    hp:18, spd:55, dmg:6,  r:10, hue:120, seed:3,  xp:1, from:0},
+  {id:'chispamurci', name:'Chispamurci', type:'electrico', hp:14, spd:95, dmg:5,  r:9,  hue:50,  seed:8,  xp:1, from:60},
+  {id:'aguamedusa',  name:'Aguamedusa',  type:'agua',      hp:30, spd:70, dmg:7,  r:11, hue:205, seed:27, xp:2, from:120},
+  {id:'magmaroca',   name:'Magmaroca',   type:'fuego',     hp:90, spd:38, dmg:12, r:16, hue:18,  seed:15, xp:3, from:150},
+  {id:'umbrabrujo',  name:'Umbrabrujo',  type:'sombra',    hp:40, spd:60, dmg:8,  r:12, hue:270, seed:21, xp:2, from:240, shoots:true},
+  {id:'dracoaleta',  name:'Dracoaleta',  type:'dragon',    hp:60, spd:85, dmg:10, r:13, hue:230, seed:33, xp:3, from:360},
 ];
 const UPGRADES = [
   {id:'hp',  name:'Vitalidad', desc:'+10% vida máxima por nivel',  base:60},
@@ -142,15 +148,72 @@ const UPGRADES = [
 ];
 const MAX_UP = 10;
 
+// Mapas: cada uno favorece a un tipo. Durante ese mapa, las criaturas de ese tipo (hostiles o tu compañero)
+// reciben MAP_BUFF en SU especialidad (TYPE_BUFF.stat). Todo ajustable desde estas tablas.
+const MAP_BUFF = 1.2, MAP_EVERY = 75;
+const TYPE_BUFF = {
+  fuego:    {stat:'dmg',  label:'Daño'},
+  agua:     {stat:'res',  label:'Resistencia'},
+  planta:   {stat:'hp',   label:'Vitalidad'},
+  electrico:{stat:'spd',  label:'Velocidad'},
+  sombra:   {stat:'rate', label:'Cadencia'},
+  dragon:   {stat:'size', label:'Tamaño y alcance'},
+};
+const MAPS = [
+  {id:'crater',   name:'Cráter Ardiente',     type:'fuego',     a:'#3d2622', b:'#38211e', d1:'#5e3326', d2:'#ff9a4a'},
+  {id:'lago',     name:'Lago Sereno',         type:'agua',      a:'#20384f', b:'#1c3249', d1:'#2f5878', d2:'#bfe6ff'},
+  {id:'bosque',   name:'Bosque Profundo',     type:'planta',    a:'#2a4331', b:'#264030', d1:'#35603f', d2:'#e8e0a0'},
+  {id:'llanura',  name:'Llanura Tormentosa',  type:'electrico', a:'#3d3b24', b:'#383620', d1:'#5c5830', d2:'#fff27a'},
+  {id:'ruinas',   name:'Ruinas Umbrías',      type:'sombra',    a:'#2c2342', b:'#271f3b', d1:'#44345f', d2:'#c9a8ff'},
+  {id:'cumbre',   name:'Cumbre Dracónica',    type:'dragon',    a:'#26304f', b:'#222b47', d1:'#37457a', d2:'#9fb4ff'},
+];
+// Legendarios: uno por tipo; el jefe que aparece cada 4 minutos es de un tipo al azar.
+const LEG = {
+  fuego:    {name:'Solarax',   seed:101}, agua:   {name:'Abisomar', seed:102}, planta: {name:'Gaiarbol', seed:103},
+  electrico:{name:'Voltarion', seed:104}, sombra: {name:'Noctirex', seed:105}, dragon: {name:'Draconix', seed:106},
+};
+// Criaturario: textos propios (nada copiado de ningún juego).
+const DESC = {
+  brasito:'Una brasa con patas que nunca se apaga. Calienta a sus amigos y chamusca al resto.',
+  gotin:'Una gota curiosa que rebota por los charcos. Su chorro atraviesa lo que se ponga delante.',
+  brotin:'Hojas, raíces y mucha paciencia. Su látigo barre a todo el que se acerque demasiado.',
+  chispin:'Pequeño y nervioso, acumula electricidad en las orejas y la suelta en el momento justo.',
+  sombrio:'Nadie sabe de dónde viene. Las esferas que lo rodean parecen vigilar en todas direcciones.',
+  dracolin:'Un dragoncito orgulloso. Su aliento todavía es pequeño, pero ya impone respeto.',
+  hojarrata:'Roedora de sotobosque. Llega en manada y siempre tiene hambre.',
+  chispamurci:'Murciélago de chispas. Vuela en zigzag y es difícil de acorralar.',
+  aguamedusa:'Medusa flotante de aguas dulces. Su roce adormece los reflejos.',
+  magmaroca:'Un bloque de roca fundida que avanza despacio pero aguanta muchísimo.',
+  umbrabrujo:'Hechicero de las ruinas. Lanza bolas de sombra desde la distancia.',
+  dracoaleta:'Joven de las cumbres. Rápida, resistente y con mal carácter.',
+  'leg-fuego':'Leyenda de los cráteres: dicen que su sola presencia hace hervir el suelo.',
+  'leg-agua':'Habita en lo más hondo del lago. Cuando sube a la superficie llega la marea.',
+  'leg-planta':'Un árbol que camina. Los bosques crecen allí donde descansa.',
+  'leg-electrico':'Cabalga las tormentas. Cada paso suyo es un trueno.',
+  'leg-sombra':'Habita las ruinas olvidadas. Su silueta se come la luz a su alrededor.',
+  'leg-dragon':'Señor de las cumbres. Su rugido se oye en tres montañas.',
+};
+const DEX = [
+  ...SPECIES.map(x => ({id:x.id, name:x.name, type:x.type, role:'Compañero', seed:x.seed, hp:x.hp, spd:x.spd, note:'Empieza con '+MOVES[x.move].name})),
+  ...ENEMY_TYPES.map(x => ({id:x.id, name:x.name, type:x.type, role:'Hostil', seed:x.seed, hue:x.hue, hp:x.hp, spd:x.spd, note:'Aparece desde '+Math.floor(x.from/60)+' min'})),
+  ...Object.keys(LEG).map(t => ({id:'leg-'+t, name:LEG[t].name, type:t, role:'Legendario', seed:LEG[t].seed, hue:TYPES[t].h, hp:900, spd:42, big:true, note:'Jefe cada 4 minutos'})),
+];
+
 /* ---------- 2. GUARDADO ---------- */
 const KEY = 'criasurvivor-v1';
 function defaultSave(){
-  return {coins:0, owned:{brasito:{shiny:false}, gotin:{shiny:false}, brotin:{shiny:false}}, sel:'brasito',
-          up:{hp:0,dmg:0,spd:0,mag:0,coin:0}, stats:{runs:0,bestT:0,bestL:0,kills:0}, sound:true};
+  return ensureDex({coins:0, owned:{brasito:{shiny:false}, gotin:{shiny:false}, brotin:{shiny:false}}, sel:'brasito',
+          up:{hp:0,dmg:0,spd:0,mag:0,coin:0}, stats:{runs:0,bestT:0,bestL:0,kills:0}, sound:true, dex:{c:{},m:{}}});
 }
 function loadSave(){
-  try{ const s = JSON.parse(localStorage.getItem(KEY)); if(s && s.owned) return Object.assign(defaultSave(), s); }catch(e){}
+  try{ const s = JSON.parse(localStorage.getItem(KEY)); if(s && s.owned) return ensureDex(Object.assign(defaultSave(), s)); }catch(e){}
   return defaultSave();
+}
+// Criaturario: c = criaturas {seen,kills,shiny}, m = mapas visitados. Los compañeros que tienes cuentan como descubiertos.
+function ensureDex(S){
+  S.dex = S.dex || {}; S.dex.c = S.dex.c || {}; S.dex.m = S.dex.m || {};
+  for(const id in S.owned){ const d = S.dex.c[id] = S.dex.c[id] || {seen:true, kills:0}; d.seen = true; d.shiny = !!S.owned[id].shiny; }
+  return S;
 }
 let SAVE = loadSave();
 function persist(){ try{ localStorage.setItem(KEY, JSON.stringify(SAVE)); }catch(e){} }
@@ -241,19 +304,50 @@ function newRun(){
   G = {
     sp, shiny, t:0, over:false, paused:false, locked:false,
     px:0, py:0, face:1, inv:0, maxhp:0, hp:0, spdBonus:1, magBonus:1, dmgBonus:1,
-    lvl:1, xp:0, pending:[], kills:0, coins:0, rerolls:1, item:null,
+    map:null, mapT:MAP_EVERY, newDisc:[], baseMax:0, lvl:1, xp:0, pending:[], kills:0, coins:0, rerolls:1, item:null,
     moves:[{id:sp.move, lvl:1, t:0.3, links:[]}],   // cada elemento = un hueco; links = movimientos unidos (Vínculo)
     sel:0, enemies:[], proj:[], ebul:[], gems:[], fx:[], txt:[], spawnAcc:0, nextBoss:180, bossN:0, banner:null, orbAng:0, cam:{x:0,y:0},
   };
-  const m = mult(); G.maxhp = Math.round(sp.hp*m.hp); G.hp = G.maxhp;
+  const m = mult(); G.baseMax = Math.round(sp.hp*m.hp); setMap(pick(MAPS), true);
+  if(shiny && SAVE.dex.c[sp.id]) SAVE.dex.c[sp.id].shiny = true;
   ['#ovMenu','#ovPanel','#ovLvl','#ovPause','#ovOver'].forEach(s => $(s).classList.remove('on'));
 }
 
 /* ---------- 6. LÓGICA ---------- */
+// Buff del mapa: MAP_BUFF si el tipo coincide con el del mapa Y la estadística es la especialidad de ese tipo.
+function buffFor(type, stat){ return (G && G.map && G.map.type===type && TYPE_BUFF[type].stat===stat) ? MAP_BUFF : 1; }
+const pb = stat => buffFor(G.sp.type, stat);          // buff de tu compañero
+const eb = (e, stat) => buffFor(e.type, stat);        // buff de un hostil
+function syncEnemy(e){                                // vida y tamaño se aplican al cambiar de mapa (y se revierten)
+  const th = eb(e,'hp'), tr = eb(e,'size');
+  if(e.hpBuf !== th){ const r = th/e.hpBuf; e.hp *= r; e.maxhp *= r; e.hpBuf = th; }
+  if(e.rBuf !== tr){ e.r *= tr/e.rBuf; e.rBuf = tr; }
+}
+function setMap(m, first){
+  G.map = m; G.mapT = MAP_EVERY;
+  const ratio = G.maxhp > 0 ? G.hp/G.maxhp : 1;       // la vida máxima de la criatura de ese tipo sube/baja con el mapa
+  G.maxhp = Math.round(G.baseMax * pb('hp')); G.hp = G.maxhp*ratio;
+  for(const e of G.enemies) syncEnemy(e);
+  if(!SAVE.dex.m[m.id]){ SAVE.dex.m[m.id] = true; G.newDisc.push(m.name); persist(); }
+  if(!first){
+    const t = TYPES[m.type];
+    G.banner = {s:`¡${m.name}! ${t.n} ×${MAP_BUFF} ${TYPE_BUFF[m.type].label}`, t:3.5};
+    G.fx.push({k:'mapflash', life:0.8, t:0.8, col:t.c}); beep(330,0.2,'triangle',0.05,220);
+  }
+}
+const changeMap = () => setMap(pick(MAPS.filter(x => x !== G.map)));
+function discover(id, label){
+  const d = SAVE.dex.c[id] = SAVE.dex.c[id] || {seen:false, kills:0};
+  if(d.seen) return;
+  d.seen = true; persist(); G.newDisc.push(label);
+  G.banner = {s:'Criaturario: '+label, t:2.5}; beep(980,0.1,'triangle',0.04);
+}
+function countKill(e){ const d = SAVE.dex.c[e.id]; if(d) d.kills = (d.kills||0) + 1; }
+
 const flat = () => G.moves.flatMap(g => [g, ...g.links]);   // todos los movimientos (con vinculados)
 function moveDmg(m, focus){
   const base = MOVES[m.id].dmg * (1+0.22*(m.lvl-1)) * (m.lvl>=5?1.35:1);
-  return base * mult().dmg * G.dmgBonus * (focus?1.25:1);
+  return base * mult().dmg * G.dmgBonus * (focus?1.25:1) * pb('dmg');
 }
 const moveName = m => m.lvl>=5 ? MOVES[m.id].evo : MOVES[m.id].name;
 
@@ -263,7 +357,7 @@ function nearest(x, y, maxD=520){
   return best;
 }
 function shoot(x,y,ang,speed,dmg,r,pierce,life,col){
-  G.proj.push({x,y,vx:Math.cos(ang)*speed,vy:Math.sin(ang)*speed,dmg,r,pierce,life,col,hit:[]});
+  G.proj.push({x,y,vx:Math.cos(ang)*speed,vy:Math.sin(ang)*speed,dmg,r:r*pb('size'),pierce,life,col,hit:[]});
 }
 function fire(m, focus){
   const d = moveDmg(m, focus), L = m.lvl, evo = L>=5, col = TYPES[MOVES[m.id].type].c;
@@ -282,7 +376,7 @@ function fire(m, focus){
       for(let i=0;i<n;i++) shoot(G.px,G.py,baseAng+(i-(n-1)/2)*0.2,400,d,evo?9:7,2+L,1.3,col);
       beep(380,0.08,'triangle',0.025,120); break; }
     case 'latigo': {
-      const R = 70 + 12*L + (evo?25:0);
+      const R = (70 + 12*L + (evo?25:0)) * pb('size');
       for(const e of G.enemies){ const dx=e.x-G.px, dy=e.y-G.py, dist=Math.hypot(dx,dy);
         if(dist<R+e.r){ hurt(e,d); e.kx+=dx/(dist||1)*220; e.ky+=dy/(dist||1)*220; } }
       G.fx.push({k:'ring',x:G.px,y:G.py,r:10,max:R,life:0.3,t:0.3,col});
@@ -303,7 +397,7 @@ function fire(m, focus){
 function updateOrbs(dt){
   G.orbAng += dt*2.6;
   for(const m of flat()){ if(m.id!=='orbita') continue;
-    const evo = m.lvl>=5, n = 2 + Math.floor(m.lvl/2) + (evo?1:0), R = 52 + 4*m.lvl;
+    const evo = m.lvl>=5, n = 2 + Math.floor(m.lvl/2) + (evo?1:0), R = (52 + 4*m.lvl) * pb('size');
     const d = moveDmg(m, G.moves[G.sel] && (G.moves[G.sel]===m || G.moves[G.sel].links.includes(m)));
     for(let i=0;i<n;i++){ const a = G.orbAng + i*Math.PI*2/n, ox = G.px+Math.cos(a)*R, oy = G.py+Math.sin(a)*R;
       m._orbs = m._orbs || []; m._orbs[i] = {x:ox,y:oy};
@@ -313,12 +407,12 @@ function updateOrbs(dt){
 }
 
 function hurt(e, d){
-  e.hp -= d; e.flash = 0.1; sfx.hit();
+  e.hp -= d/eb(e,'res'); e.flash = 0.1; sfx.hit();
   if(G.txt.length<40) G.txt.push({x:e.x+rnd(-6,6),y:e.y-e.r,s:String(Math.round(d)),t:0.5});
   if(e.hp<=0 && !e.dead) kill(e);
 }
 function kill(e){
-  e.dead = true; G.kills++;
+  e.dead = true; G.kills++; countKill(e);
   G.gems.push({x:e.x,y:e.y,v:e.boss?30:e.xp,coin:false});
   const m = mult();
   if(e.boss){ for(let i=0;i<8;i++) G.gems.push({x:e.x+rnd(-30,30),y:e.y+rnd(-30,30),v:0,coin:true,c:Math.ceil(5*m.coin)}); }
@@ -336,19 +430,20 @@ function spawn(dt){
     for(let i=0;i<pool.length;i++){ r -= w[i]; if(r<=0){ et = pool[i]; break; } }
     const a = rnd(0, Math.PI*2), dist = Math.max(W,H)/Z/2*1.1 + 40;
     const sc = 1 + t/110;
-    G.enemies.push({...et, x:G.px+Math.cos(a)*dist, y:G.py+Math.sin(a)*dist, hp:et.hp*sc, maxhp:et.hp*sc, kx:0,ky:0, flash:0, orbT:0, shootT:rnd(1,3), ph:rnd(0,6.28)});
+    G.enemies.push({...et, x:G.px+Math.cos(a)*dist, y:G.py+Math.sin(a)*dist, hp:et.hp*sc, maxhp:et.hp*sc, kx:0,ky:0, flash:0, orbT:0, shootT:rnd(1,3), ph:rnd(0,6.28), hpBuf:1, rBuf:1}); syncEnemy(G.enemies[G.enemies.length-1]);
   }
   if(t >= G.nextBoss){
-    G.nextBoss += 240; G.bossN++;
+    G.nextBoss += 240; G.bossN++; const bt = pick(Object.keys(TYPES));
     const a = rnd(0,Math.PI*2), dist = Math.max(W,H)/Z/2 + 80, hp = 900 + G.bossN*900 + t*2;
-    G.enemies.push({id:'boss',boss:true,hp,maxhp:hp,spd:42,dmg:20,r:34,hue:350,seed:99,xp:30,x:G.px+Math.cos(a)*dist,y:G.py+Math.sin(a)*dist,kx:0,ky:0,flash:0,orbT:0,shootT:2,ph:0});
-    G.banner = {s:'¡Un legendario se acerca!', t:3}; sfx.boss();
+    G.enemies.push({id:'leg-'+bt,name:LEG[bt].name,type:bt,boss:true,hp,maxhp:hp,spd:42,dmg:20,r:34,hue:TYPES[bt].h,seed:LEG[bt].seed,xp:30,hpBuf:1,rBuf:1,x:G.px+Math.cos(a)*dist,y:G.py+Math.sin(a)*dist,kx:0,ky:0,flash:0,orbT:0,shootT:2,ph:0});
+    syncEnemy(G.enemies[G.enemies.length-1]);
+    G.banner = {s:'¡'+LEG[bt].name+' se acerca!', t:3}; sfx.boss();
   }
 }
 
 function playerHit(d){
   if(G.inv>0) return;
-  G.hp -= d*mult().armor; G.inv = 0.6; sfx.hurt();
+  G.hp -= d*mult().armor/pb('res'); G.inv = 0.6; sfx.hurt();
   G.fx.push({k:'flash',life:0.15,t:0.15});
   if(G.hp<=0) endRun();
 }
@@ -362,32 +457,34 @@ const xpNeed = l => 6 + l*5;
 function update(dt){
   const g = G, m = mult();
   g.t += dt;
+  g.mapT -= dt; if(g.mapT <= 0) changeMap();
   if(g.inv>0) g.inv -= dt;
   // movimiento
   let ix = (keys.d||keys.arrowright?1:0) - (keys.a||keys.arrowleft?1:0), iy = (keys.s||keys.arrowdown?1:0) - (keys.w||keys.arrowup?1:0);
   if(touch){ const dx = touch.x-touch.ox, dy = touch.y-touch.oy, l = Math.hypot(dx,dy); if(l>8){ ix = dx/Math.max(l,40); iy = dy/Math.max(l,40); } }
   const il = Math.hypot(ix,iy); if(il>1){ ix/=il; iy/=il; }
-  const spd = g.sp.spd * m.spd;
+  const spd = g.sp.spd * m.spd * pb('spd');
   g.px += ix*spd*dt; g.py += iy*spd*dt; if(ix) g.face = ix>0?1:-1;
   if(g.item==='bayas') g.hp = Math.min(g.maxhp, g.hp + 1.5*dt);
   // ataques
   g.moves.forEach((gr, i) => { gr.t -= dt;
     if(gr.t <= 0){ const focus = (i===g.sel); fire(gr, focus); for(const l of gr.links) fire(l, focus);
-      gr.t = MOVES[gr.id].cd * m.cd; } });
+      gr.t = MOVES[gr.id].cd * m.cd / pb('rate'); } });
   updateOrbs(dt);
   spawn(dt);
   // enemigos
   for(const e of g.enemies){
     const dx = g.px-e.x, dy = g.py-e.y, dist = Math.hypot(dx,dy)||1;
+    if(!e.disc && dist < 400){ e.disc = true; discover(e.id, e.name); }
     e.ph += dt*3; e.flash -= dt; e.orbT -= dt;
     const wob = Math.sin(e.ph)*0.25;
-    e.x += (dx/dist*e.spd*(1+wob*0.3) + e.kx)*dt; e.y += (dy/dist*e.spd*(1+wob*0.3) + e.ky)*dt;
+    e.x += (dx/dist*e.spd*eb(e,'spd')*(1+wob*0.3) + e.kx)*dt; e.y += (dy/dist*e.spd*eb(e,'spd')*(1+wob*0.3) + e.ky)*dt;
     e.kx *= Math.pow(0.02, dt); e.ky *= Math.pow(0.02, dt);
-    if(dist < e.r+12) playerHit(e.dmg);
-    if(e.shoots || e.boss){ e.shootT -= dt;
+    if(dist < e.r+12) playerHit(e.dmg*eb(e,'dmg'));
+    if(e.shoots || e.boss){ e.shootT -= dt*eb(e,'rate');
       if(e.shootT<=0 && dist<420){
-        if(e.boss){ e.shootT = 2.4; const n=14, o=Math.random()*6; for(let i=0;i<n;i++) ebul(e.x,e.y,o+i*Math.PI*2/n,130,12); }
-        else { e.shootT = rnd(2,3.2); ebul(e.x,e.y,Math.atan2(dy,dx),140,8); } } }
+        if(e.boss){ e.shootT = 2.4; const n=14, o=Math.random()*6; for(let i=0;i<n;i++) ebul(e.x,e.y,o+i*Math.PI*2/n,130,12*eb(e,'dmg')); }
+        else { e.shootT = rnd(2,3.2); ebul(e.x,e.y,Math.atan2(dy,dx),140,8*eb(e,'dmg')); } } }
   }
   // proyectiles propios
   for(const p of g.proj){
@@ -489,7 +586,8 @@ function endRun(){
   SAVE.coins += earned; persist();
   $('#oBody').innerHTML =
     `<div class="stat"><span>Tiempo</span><b>${fmtT(G.t)}</b></div><div class="stat"><span>Nivel</span><b>${G.lvl}</b></div>` +
-    `<div class="stat"><span>Derrotados</span><b>${G.kills}</b></div><div class="stat"><span>Monedas ganadas</span><b class="coin">+${earned}</b></div>`;
+    `<div class="stat"><span>Derrotados</span><b>${G.kills}</b></div><div class="stat"><span>Monedas ganadas</span><b class="coin">+${earned}</b></div>` +
+    (G.newDisc.length ? `<div class="stat"><span>Descubierto</span><b>${G.newDisc.join(', ')}</b></div>` : '');
   setTimeout(() => $('#ovOver').classList.add('on'), 700);
 }
 
@@ -502,12 +600,12 @@ function draw(){
   const vw = cv.width/Z, vh = cv.height/Z, cx = g.cam.x - vw/2, cy = g.cam.y - vh/2;
   ctx.translate(-Math.round(cx), -Math.round(cy));
   // suelo: baldosas con detalles deterministas
-  const T = 48, x0 = Math.floor(cx/T), y0 = Math.floor(cy/T);
+  const T = 48, x0 = Math.floor(cx/T), y0 = Math.floor(cy/T), mp = g.map;
   for(let ty=y0; ty<=y0+vh/T+1; ty++) for(let tx=x0; tx<=x0+vw/T+1; tx++){
     const h = bgTile(tx,ty);
-    ctx.fillStyle = ((tx+ty)&1) ? '#2a4331' : '#264030'; ctx.fillRect(tx*T,ty*T,T,T);
-    if(h%7===0){ ctx.fillStyle='#35603f'; ctx.fillRect(tx*T+(h>>3)%36, ty*T+(h>>7)%36, 4, 4); }
-    if(h%23===0){ ctx.fillStyle='#e8e0a0'; ctx.fillRect(tx*T+(h>>5)%36, ty*T+(h>>9)%36, 3, 3); }
+    ctx.fillStyle = ((tx+ty)&1) ? mp.a : mp.b; ctx.fillRect(tx*T,ty*T,T,T);
+    if(h%7===0){ ctx.fillStyle=mp.d1; ctx.fillRect(tx*T+(h>>3)%36, ty*T+(h>>7)%36, 4, 4); }
+    if(h%23===0){ ctx.fillStyle=mp.d2; ctx.fillRect(tx*T+(h>>5)%36, ty*T+(h>>9)%36, 3, 3); }
   }
   // gemas
   for(const gm of g.gems){ if(gm.coin){ ctx.fillStyle='#ffd93b'; ctx.beginPath(); ctx.arc(gm.x,gm.y,5,0,7); ctx.fill(); ctx.fillStyle='#b8860b'; ctx.fillRect(gm.x-1,gm.y-3,2,6); }
@@ -517,6 +615,7 @@ function draw(){
     const s = makeSprite(e.seed, e.hue, false, e.boss?12:10, 3), sz = e.r*2.5;
     ctx.save(); ctx.translate(e.x,e.y); if(g.px<e.x) ctx.scale(-1,1);
     ctx.globalAlpha = 0.3; ctx.fillStyle='#000'; ctx.beginPath(); ctx.ellipse(0,sz*0.45,sz*0.4,sz*0.14,0,0,7); ctx.fill(); ctx.globalAlpha=1;
+    if(mp.type===e.type){ ctx.strokeStyle=TYPES[e.type].c; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,sz*0.62,0,7); ctx.stroke(); }
     ctx.drawImage(s,-sz/2,-sz/2,sz,sz);
     if(e.flash>0){ ctx.globalCompositeOperation='lighter'; ctx.globalAlpha=0.7; ctx.drawImage(s,-sz/2,-sz/2,sz,sz); }
     ctx.restore();
@@ -529,6 +628,7 @@ function draw(){
     if(!(g.inv>0 && Math.floor(g.t*20)%2)){
       ctx.save(); ctx.translate(g.px,g.py); ctx.scale(g.face,1);
       ctx.globalAlpha=0.3; ctx.fillStyle='#000'; ctx.beginPath(); ctx.ellipse(0,15,13,5,0,0,7); ctx.fill(); ctx.globalAlpha=1;
+      if(mp.type===g.sp.type){ ctx.strokeStyle='#7be061'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,24+Math.sin(g.t*6)*1.5,0,7); ctx.stroke(); }
       ctx.translate(0, Math.sin(g.t*10)*1.2); ctx.drawImage(s,-sz/2,-sz/2,sz,sz); ctx.restore(); } }
   // proyectiles
   for(const p of g.proj){ ctx.fillStyle=p.col; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,7); ctx.fill(); ctx.fillStyle='#fff8'; ctx.beginPath(); ctx.arc(p.x-p.r*0.3,p.y-p.r*0.3,p.r*0.4,0,7); ctx.fill(); }
@@ -546,15 +646,22 @@ function draw(){
 function drawHUD(){
   const g = G, w = cv.width/Z, h = cv.height/Z, m = mult();
   ctx.setTransform(Z,0,0,Z,0,0);
-  for(const f of g.fx) if(f.k==='flash'){ ctx.fillStyle=`rgba(255,40,60,${0.35*f.t/f.life})`; ctx.fillRect(0,0,w,h); }
+  for(const f of g.fx){
+    if(f.k==='flash'){ ctx.fillStyle=`rgba(255,40,60,${0.35*f.t/f.life})`; ctx.fillRect(0,0,w,h); }
+    if(f.k==='mapflash'){ ctx.globalAlpha = 0.45*f.t/f.life; ctx.fillStyle=f.col; ctx.fillRect(0,0,w,h); ctx.globalAlpha=1; }
+  }
   // vida
   ctx.fillStyle='#000a'; ctx.fillRect(10,10,160,14); ctx.fillStyle='#e8445a'; ctx.fillRect(10,10,160*Math.max(0,g.hp/g.maxhp),14);
   ctx.strokeStyle='#fff'; ctx.lineWidth=1; ctx.strokeRect(10.5,10.5,160,14);
   ctx.font='bold 11px ui-monospace,monospace'; ctx.fillStyle='#fff'; ctx.textAlign='left'; ctx.fillText(`${Math.ceil(Math.max(0,g.hp))}/${g.maxhp}`,14,21);
+  if(g.map.type===g.sp.type){ ctx.fillStyle='#7be061'; ctx.fillText('BUFF '+TYPE_BUFF[g.sp.type].label+' ×'+MAP_BUFF,14,38); }
   // XP
   ctx.fillStyle='#000a'; ctx.fillRect(0,h-10,w,10); ctx.fillStyle='#5ad7ff'; ctx.fillRect(0,h-10,w*g.xp/xpNeed(g.lvl),10);
   // tiempo y datos
   ctx.textAlign='center'; ctx.font='bold 22px ui-monospace,monospace'; ctx.fillStyle='#000'; ctx.fillText(fmtT(g.t),w/2+1,31); ctx.fillStyle='#fff'; ctx.fillText(fmtT(g.t),w/2,30);
+  { const mt = TYPES[g.map.type]; ctx.font='bold 11px ui-monospace,monospace'; ctx.textAlign='center';
+    const txt = `${g.map.name} · ${mt.n} ×${MAP_BUFF} ${TYPE_BUFF[g.map.type].label} · cambia en ${Math.ceil(g.mapT)}s`;
+    ctx.fillStyle='#000'; ctx.fillText(txt,w/2+1,47); ctx.fillStyle=mt.c; ctx.fillText(txt,w/2,46); }
   ctx.textAlign='right'; ctx.font='bold 13px ui-monospace,monospace'; ctx.fillStyle='#fff';
   ctx.fillText(`Nv ${g.lvl}`, w-10, 22); ctx.fillStyle='#ffd93b'; ctx.fillText(`● ${g.coins}`, w-10, 40); ctx.fillStyle='#ccc'; ctx.fillText(`☠ ${g.kills}`, w-10, 58);
   // huecos de movimientos
@@ -622,6 +729,37 @@ function panelGacha(msg=[]){
   const go = (n, cost) => () => { if(SAVE.coins<cost) return; SAVE.coins -= cost; const r=[]; for(let i=0;i<n;i++) r.push(gachaRoll()); persist(); refreshMenu(); sfx.lvl(); panelGacha(r); };
   $('#g1').onclick = go(1,100); $('#g10').onclick = go(10,900);
 }
+function drawDex(canvas, d){                       // sprite de una ficha (los jefes son de 12x12 celdas)
+  const grid = d.big ? 12 : 10, spr = d.role==='Compañero' ? spriteOf(SPECIES.find(x => x.id===d.id), SAVE.owned[d.id] && SAVE.owned[d.id].shiny) : makeSprite(d.seed, d.hue, false, grid, 3);
+  canvas.width = canvas.height = 36; const k = canvas.getContext('2d'); k.imageSmoothingEnabled = false; k.clearRect(0,0,36,36);
+  k.drawImage(spr, (36-spr.width)/2, (36-spr.height)/2);
+}
+function panelDex(tab='c'){
+  const C = SAVE.dex.c, got = DEX.filter(d => C[d.id] && C[d.id].seen).length, mg = MAPS.filter(m => SAVE.dex.m[m.id]).length;
+  openPanel('Criaturario', `<div class="row"><div><button data-t="c" class="${tab==='c'?'sel':''}">Criaturas ${got}/${DEX.length}</button>
+    <button data-t="m" class="${tab==='m'?'sel':''}">Mapas ${mg}/${MAPS.length}</button></div></div>
+    <p class="hint" style="text-align:left">Se desbloquean al descubrirlas: hostiles y legendarios al verlos de cerca, compañeros al conseguirlos, mapas al visitarlos.</p>
+    <div class="grid" id="dg"></div>`);
+  $('#pBody').querySelectorAll('button[data-t]').forEach(b => b.onclick = () => panelDex(b.dataset.t));
+  const box = $('#dg');
+  if(tab === 'c') DEX.forEach(d => {
+    const e = C[d.id], ok = e && e.seen, t = TYPES[d.type], card = document.createElement('div'); card.className = 'dcard';
+    const cv2 = document.createElement('canvas'); cv2.style.cssText = 'width:72px;height:72px;image-rendering:pixelated'; if(!ok) cv2.className = 'sil';
+    drawDex(cv2, d); card.appendChild(cv2);
+    if(!ok){ card.insertAdjacentHTML('beforeend', '<b>???</b><small>Sin descubrir</small>'); }
+    else card.insertAdjacentHTML('beforeend', `<b>${d.name}${e.shiny?' ✨':''}</b>
+      <span><span class="tag" style="background:${t.c}">${t.n}</span><span class="tag" style="background:#ddd">${d.role}</span></span>
+      <small>Especialidad: ${TYPE_BUFF[d.type].label} (×${MAP_BUFF} en su mapa)<br>Vida ${d.hp} · Vel ${d.spd}<br>${d.note}</small>
+      <small>${DESC[d.id]}</small>${d.role==='Compañero' ? '' : `<small>Derrotados: <b>${e.kills||0}</b></small>`}`);
+    box.appendChild(card);
+  });
+  else MAPS.forEach(m => {
+    const ok = SAVE.dex.m[m.id], t = TYPES[m.type], card = document.createElement('div'); card.className = 'dcard';
+    card.insertAdjacentHTML('beforeend', `<div style="width:72px;height:72px;border-radius:6px;background:${ok?`linear-gradient(135deg,${m.a} 50%,${m.b} 50%)`:'#111'};border:3px solid ${ok?t.c:'#333'}"></div>` +
+      (ok ? `<b>${m.name}</b><span class="tag" style="background:${t.c}">${t.n}</span><small>Favorece a las criaturas de tipo ${t.n}: ×${MAP_BUFF} en ${TYPE_BUFF[m.type].label}</small>` : '<b>???</b><small>Sin visitar</small>'));
+    box.appendChild(card);
+  });
+}
 function panelStats(){
   const s = SAVE.stats;
   openPanel('Estadísticas', [['Runs',s.runs],['Mejor tiempo',fmtT(s.bestT)],['Mejor nivel',s.bestL],['Enemigos derrotados',s.kills],
@@ -637,7 +775,7 @@ function panelGuide(){
     <div class="stat"><span>Pausa</span><b>Esc</b></div>
     <p class="hint" style="text-align:left;font-size:14px">Recoge gemas azules para subir de nivel y elige mejoras. Al nivel 5 de un movimiento evoluciona.
     Niveles 5, 15, 25…: objeto (sólo uno). Niveles 10, 20, 30…: Vínculo, que une dos movimientos en un hueco.
-    Cada 4 minutos aparece un legendario. Las monedas sirven para mejoras permanentes y el Gacha.</p>`);
+    Cada 4 minutos aparece un legendario. Cada 75 segundos cambia el mapa: las criaturas del tipo del mapa (tú también) ganan ×1.2 en su especialidad. Mira el Criaturario para ver todas. Las monedas sirven para mejoras permanentes y el Gacha.</p>`);
 }
 function setSound(v){ SAVE.sound = v; persist(); $('#bSound').textContent = 'Sonido: ' + (v?'sí':'no'); $('#bSnd2').textContent = 'Sonido: ' + (v?'sí':'no'); }
 
@@ -645,7 +783,7 @@ $('#bPlay').onclick = () => { newRun(); beep(600,0.1,'square',0.04); };
 $('#bAgain').onclick = () => newRun();
 $('#bMenu').onclick = () => { G = null; hide('#ovOver'); show('#ovMenu'); refreshMenu(); };
 $('#bComp').onclick = panelCompanions; $('#bUp').onclick = panelUpgrades; $('#bGacha').onclick = () => panelGacha();
-$('#bStats').onclick = panelStats; $('#bGuide').onclick = panelGuide;
+$('#bStats').onclick = panelStats; $('#bDex').onclick = () => panelDex(); $('#bGuide').onclick = panelGuide;
 $('#pBack').onclick = () => hide('#ovPanel');
 $('#bSound').onclick = $('#bSnd2').onclick = () => setSound(!SAVE.sound);
 $('#bResume').onclick = () => togglePause(false);

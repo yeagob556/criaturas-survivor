@@ -16,7 +16,9 @@ Abre `index.html` en el navegador (o sírvelo con cualquier servidor estático).
 
 - Recoge gemas para subir de nivel y elige 1 de 3 recompensas (R cambia las opciones).
 - Un movimiento al nivel 5 **evoluciona**. Niveles 5, 15, 25…: un objeto (solo uno). Niveles 10, 20, 30…: **Vínculo**, que une dos movimientos en un hueco.
-- Cada 4 minutos llega un jefe legendario.
+- Cada 4 minutos llega un jefe legendario (de un tipo al azar).
+- **Mapas:** hay 6 (uno por tipo) y cambian cada 75 s. Las criaturas del tipo del mapa, hostiles o tu compañero, reciben **×1.2 en su especialidad**: Fuego daño · Agua resistencia · Planta vida máxima · Eléctrico velocidad · Sombra cadencia · Dragón tamaño y alcance. Un aro de color marca a las que están potenciadas. Se ajusta en `MAP_BUFF`, `MAP_EVERY` y `TYPE_BUFF`.
+- **Criaturario:** enciclopedia en el menú. Hostiles y legendarios se descubren al verlos de cerca, los compañeros al conseguirlos y los mapas al visitarlos; muestra especialidad, estadísticas, descripción y bajas.
 - Las monedas compran mejoras permanentes y tiradas de Gacha (compañeros nuevos y versiones shiny, +10% daño).
 - El progreso se guarda en `localStorage` del navegador.
 
