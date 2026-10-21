@@ -14,6 +14,7 @@ global.AudioContext = class { constructor(){ this.currentTime = 0; this.state = 
 global.Audio = class { constructor(src){ this.src = src; this.paused = true; this.currentTime = 0; this.duration = NaN; this.handlers = {}; this.plays = 0; } addEventListener(k, f){ this.handlers[k] = f; } play(){ this.paused = false; this.plays++; return Promise.resolve(); } pause(){ this.paused = true; } };
 global.localStorage = { getItem: () => null, setItem: noop }; global.confirm = () => true;
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+global.__changelog = fs.readFileSync(path.join(__dirname, '..', 'CHANGELOG.md'), 'utf8'); global.__readme = fs.readFileSync(path.join(__dirname, '..', 'README.md'), 'utf8');
 let src = html.match(/<script>([\s\S]*)<\/script>/)[1];
 src += `
 ;(function(){
@@ -182,6 +183,11 @@ src += `
   setMusic(true); eq(music.cur === G.map.type ? 1 : 0, 1, 'al reactivarla suena la del mapa actual');
   G.hp = 0; endRun(); eq(music.cur === null ? 1 : 0, 1, 'fin de partida apaga la musica');
   console.log('MUSICA OK');
+  // --- version coherente con la documentacion ---
+  const top = (__changelog.match(/^## v(\\d+\\.\\d+\\.\\d+)/m) || [])[1]; if (top !== VERSION) throw new Error('FALLO version: index.html=' + VERSION + ' CHANGELOG=' + top);
+  if (!__readme.includes('v' + VERSION)) throw new Error('FALLO el README no menciona la version v' + VERSION);
+  newRun(); panelGuide(); refreshMenu();
+  console.log('VERSION ' + VERSION + ' OK');
   G.hp = 0; endRun();
   panelCompanions(); panelUpgrades(); panelGacha(); panelStats(); panelGuide(); refreshMenu();
   console.log('SMOKE OK');

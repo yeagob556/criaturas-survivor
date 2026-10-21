@@ -59,6 +59,7 @@
     <button id="bMusic">Música: sí</button>
   </div>
   <p class="hint">Monedas: <span class="coin" id="mCoins">0</span> · Los datos se guardan en este navegador</p>
+  <p class="hint" id="mVer"></p>
 </div></div>
 
 <!-- PANEL GENÉRICO -->
@@ -104,6 +105,8 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const fmtT = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(Math.floor(s % 60)).padStart(2, '0');
 
 /* ---------- 1. DATOS ---------- */
+// Versión visible en el menú, la Guía y la esquina del juego. Debe coincidir con el último encabezado de CHANGELOG.md (lo comprueba scripts/smoke.js).
+const VERSION = '0.6.0', VERSION_DATE = '2026-10-21';
 const TYPES = {
   fuego:{n:'Fuego',c:'#ff7a3d',h:18}, agua:{n:'Agua',c:'#4aa8ff',h:205}, planta:{n:'Planta',c:'#5fcf6a',h:120},
   electrico:{n:'Eléctrico',c:'#ffd93b',h:50}, sombra:{n:'Sombra',c:'#8a5cc2',h:270}, dragon:{n:'Dragón',c:'#4f6bff',h:230}
@@ -988,6 +991,7 @@ function drawHUD(){
   if(g.map.type===g.sp.type){ ctx.fillStyle='#7be061'; ctx.fillText('BUFF '+TYPE_BUFF[g.sp.type].label+' ×'+MAP_BUFF,14,38); }
   // XP
   ctx.fillStyle='#000a'; ctx.fillRect(0,h-10,w,10); ctx.fillStyle='#5ad7ff'; ctx.fillRect(0,h-10,w*g.xp/xpNeed(g.lvl),10);
+  ctx.fillStyle='#fff8'; ctx.font='9px ui-monospace,monospace'; ctx.textAlign='right'; ctx.fillText('v'+VERSION, w-4, h-14);
   // tiempo y datos
   ctx.textAlign='center'; ctx.font='bold 22px ui-monospace,monospace'; ctx.fillStyle='#000'; ctx.fillText(fmtT(g.t),w/2+1,31); ctx.fillStyle='#fff'; ctx.fillText(fmtT(g.t),w/2,30);
   { const mt = TYPES[g.map.type]; ctx.font='bold 11px ui-monospace,monospace'; ctx.textAlign='center';
@@ -1027,7 +1031,7 @@ function refreshMenu(){
   const sp = SPECIES.find(s => s.id===SAVE.sel), sh = SAVE.owned[sp.id].shiny;
   drawIn($('#menuSprite'), sp, sh);
   $('#menuName').innerHTML = `<b>${sp.name}</b>${sh?' ✨':''} <span class="tag" style="background:${TYPES[sp.type].c}">${TYPES[sp.type].n}</span>`;
-  $('#mCoins').textContent = SAVE.coins;
+  $('#mCoins').textContent = SAVE.coins; $('#mVer').textContent = 'Criaturas Survivor v' + VERSION + ' · ' + VERSION_DATE;
   $('#bSound').textContent = 'Sonido: ' + (SAVE.sound?'sí':'no'); $('#bMusic').textContent = $('#bMus2').textContent = 'Música: ' + (SAVE.music?'sí':'no');
 }
 function panelCompanions(){
@@ -1106,7 +1110,8 @@ function panelStats(){
   $('#bReset').onclick = () => { if(confirm('¿Borrar todo el progreso?')){ SAVE = defaultSave(); persist(); refreshMenu(); hide('#ovPanel'); } };
 }
 function panelGuide(){
-  openPanel('Guía', `<div class="stat"><span>Moverse</span><b>WASD / flechas / arrastrar el dedo</b></div>
+  openPanel('Guía', `<div class="stat"><span>Versión</span><b>v${VERSION} · ${VERSION_DATE}</b></div>
+    <div class="stat"><span>Moverse</span><b>WASD / flechas / arrastrar el dedo</b></div>
     <div class="stat"><span>Atacar</span><b>Automático</b></div>
     <div class="stat"><span>Movimiento principal</span><b>1–4 · Q/E (+25% daño)</b></div>
     <div class="stat"><span>Pausa</span><b>Esc</b></div>

@@ -14,6 +14,12 @@ Regla: al **finalizar cada tarea** se añade una entrada arriba (la más recient
 
 ## Entradas
 
+### 2026-10-21 — Versión visible y documentación completa (v0.6.0)
+- **Qué cambió:** `VERSION`/`VERSION_DATE` visibles en el menú, la Guía y la esquina del juego; CHANGELOG con versión por encabezado; README reescrito; CLAUDE.md actualizado (flujo, gotchas nuevos); `AGENTS.md` apuntando a CLAUDE.md; reglas 002 (música de IA) y 003 (versión coherente); `smoke.js` comprueba que la versión coincide con CHANGELOG y README.
+- **Ficheros:** `index.html`, `README.md`, `CLAUDE.md`, `AGENTS.md`, `CHANGELOG.md`, `rules/002-musica-ia-declarada.md`, `rules/003-version-coherente.md`, `rules/README.md`, `scripts/smoke.js`
+- **Decisiones:** `/init` no hacía falta: ya existía `CLAUDE.md` y se actualizó a mano; esquema de versión `0.x.0` por mejora (0.1.0 = primera versión); sin hosts, IPs ni puertos en los documentos.
+- **Pendiente / siguiente paso:** sincronizar y commitear cuando el usuario lo ordene (la versión no se ve en la demo hasta sincronizar); comprobar que se ve bien en navegador real.
+
 ### 2026-10-21 — Mejora 5: música de fondo por mapa
 - **Qué cambió:** motor de música (`playMusic`/`musicTick` en la sección 4b), botón Música, `scripts/generar_musica.sh` y `sync-dashboard.sh` con pistas; licencia de ACE-Step verificada (Apache-2.0).
 - **Ficheros:** `index.html` (sección 4b), `scripts/generar_musica.sh`, `scripts/sync-dashboard.sh`, `scripts/smoke.js`, `.gitignore`, `README.md`, `CHANGELOG.md`

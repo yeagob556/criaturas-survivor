@@ -1,26 +1,38 @@
 # criaturas-survivor
 
-## Antes de tocar nada
-1. Lee `rules/README.md` (hoy solo la 001: sin assets oficiales).
-2. El juego es **un solo fichero**: `index.html`. No separar en módulos ni añadir dependencias sin pedirlo.
+Juego tipo *Survivor* en **un solo `index.html`** (canvas + JS vanilla, sin dependencias) + 6 pistas de música opcionales en `music/`. Resumen y estructura en `README.md`.
 
-## Al terminar cada tarea (obligatorio)
-Entrada arriba en `memory.md` (fecha · qué cambió · ficheros · pendiente) y línea en `CHANGELOG.md`.
+## Antes de tocar nada
+1. Lee `rules/README.md`: 001 sin assets oficiales · 002 música de IA declarada y anotada · 003 versión coherente con el CHANGELOG.
+2. El juego es **un solo fichero**: no separar en módulos ni añadir dependencias sin pedirlo. La música son ficheros aparte porque embeberla inflaría el HTML.
+3. Las secciones de `index.html` (comentadas) son: 1 datos · 2 guardado · 3 sprites · 4 audio · 4b música · 5 estado · 6 lógica (+«Mundo») · 7 dibujo · 8 menús · 9 bucle. Las tablas de la sección 1 son lo que se ajusta para equilibrar.
+
+## Flujo de trabajo (acordado con el usuario)
+1. Implementar y ampliar `scripts/smoke.js` con aserciones exactas de lo nuevo.
+2. Probar en un servidor temporal que sirva **solo una copia** de `index.html` y `music/` (nunca el repo: tiene `.git` y `memory.md`), en LAN/Tailscale; apagarlo al terminar.
+3. **Solo cuando el usuario lo ordene:** `audit-secrets.sh` → `smoke.js` → `sync-dashboard.sh --apply` → commit. Nada de commit ni push por iniciativa propia.
+4. Si se sube de versión: `VERSION`/`VERSION_DATE` en `index.html`, primer encabezado de `CHANGELOG.md` y `README.md` a la vez (regla 003).
+5. Tras cada tarea: entrada arriba en `memory.md` y línea en `CHANGELOG.md`.
 
 ## Comandos
 ```
-node scripts/smoke.js                    # prueba de humo (debe acabar en "SMOKE OK")
+node scripts/smoke.js                    # debe acabar en "SMOKE OK"
 bash scripts/audit-secrets.sh            # antes de cada commit; debe salir "limpio"
-bash scripts/sync-dashboard.sh --apply   # copia index.html a la demo servida por dashboard-stack
+bash scripts/sync-dashboard.sh --apply   # copia index.html y music/ a la demo servida (simula por defecto)
+COMFY_HOST=<pc> bash scripts/generar_musica.sh --apply [tipo ...]   # regenera pistas (ComfyUI arrancado en el PC)
 ```
 
 ## Gotchas
 - `smoke.js` extrae el `<script>` con una regex: si se añade un segundo `<script>` hay que ajustarlo.
-- Para probar lógica nueva en Node, las funciones del juego son globales (`G`, `update`, `chooseOffer`, `curOffer`…); `smoke.js` las llama directamente.
+- Las funciones del juego son globales (`G`, `update`, `fire`, `chooseOffer`, `curOffer`, `getChunk`…) y `smoke.js` las llama directamente. Para pruebas exactas **sustituye `getChunk`** por un mundo vacío o a medida (los obstáculos reales salen al azar y harían las pruebas inestables) y limpia `keys` antes de simular movimiento.
+- El audio de las pruebas es falso (`Audio`/`AudioContext` simulados en `smoke.js`): no valida cómo suena, solo la lógica de fundidos, bucle y pausa.
+- Cada `fire()` fija `curMT` (tipo del movimiento) para calcular ventajas/debilidades en `hurt()`; los proyectiles llevan `p.mt`. Si se añade otra forma de dañar, pasar el tipo a `hurt(e, d, mt)`.
+- Los obstáculos guardan solo su clase; nombre, aspecto y efecto salen de `BIOME[G.map.type]` al dibujar/aplicar, así cambian al rotar el mapa sin regenerar el mundo.
+- Servidor de las demos: los nginx de `dashboard-stack` montan su `.conf` como **fichero suelto**; tras editarlos con `sed -i` hay que `docker restart` (un `nginx -s reload` lee el inodo viejo). El CSP necesita `media-src 'self'` para el audio.
 - `Z` (zoom) y `W/H` dependen de `devicePixelRatio`; el joystick táctil convierte de píxeles CSS a unidades de canvas en `drawHUD`.
-- Sin ver el juego en un navegador real no hay forma de validar el aspecto: pedir confirmación visual al usuario.
-- La fuente de verdad es este repo; la copia de `dashboard-stack/demos/criaturas-survivor/html/` se actualiza con `sync-dashboard.sh`.
+- Sin ver el juego en un navegador real no hay forma de validar el aspecto ni el sonido: pedir confirmación al usuario.
+- La fuente de verdad es este repo; la copia de `dashboard-stack/demos/criaturas-survivor/html/` se actualiza con `sync-dashboard.sh`. `music/*.mp3` no se sube a Git; cada pista se anota en `musica-ia-lofi/catalogo/canciones.csv`.
 
 ## Secretos (obligatorio)
-- Prohibido escribir IPs, puertos, nombres de host ocultos, tokens o contraseñas. El juego no usa red ni claves.
+- Prohibido escribir IPs, puertos, nombres de host ocultos, tokens o contraseñas en cualquier fichero del repo (`COMFY_HOST` va por entorno). El juego no usa red ni claves.
 - Antes de cada commit: `scripts/audit-secrets.sh` limpio. `git commit`/`push` solo por orden del usuario.
