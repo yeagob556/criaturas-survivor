@@ -2,6 +2,16 @@
 
 Versionado: `0.x.0` por cada mejora (la 0.1.0 es la primera versión); `0.x.y` para correcciones. La versión que muestra el juego (`VERSION` en `index.html`) debe coincidir con el primer encabezado de este fichero.
 
+## v0.8.4 — 2026-10-21 · La hierba aguanta más
+- La hierba alta pasa de 10 a 22,5 de vida (la mitad que una piedra, `OBS_HP.hierba = OBS_HP.piedra/2`): un disparo suelto ya no la rompe al instante y la visión reducida se nota más tiempo si atacas desde dentro. Con Ascuas nivel 1 hacen falta dos disparos (~1,3 s).
+- `scripts/smoke.js`: comprueba que la hierba tiene la mitad de vida que una piedra y que sobrevive al primer disparo de Ascuas pero cae con el segundo.
+
+## v0.8.3 — 2026-10-21 · Arreglo de los lienzos (tragamonedas, Compañeros, Criaturario) y herramienta de capturas
+- **Causa raíz del «estirado»:** una regla CSS global `canvas{position:fixed;inset:0;width:100%;height:100%}` pensada para el lienzo del juego se aplicaba a **todos** los `canvas`. La tragamonedas salía a pantalla completa, tapaba el panel y se veía antes de tirar; y los sprites de **Compañeros** y **Criaturario** se amontonaban en la esquina superior izquierda en vez de estar en sus fichas (error presente desde las primeras versiones; sólo se probaba en Node). Ahora la regla es `#cv{...}` y el resto de lienzos son normales.
+- **Nuevo `scripts/capturas.sh` + `scripts/capturas.py`:** capturas de pantalla con Chromium sin pantalla (Playwright, imagen oficial de Docker, contenedor desechable que sirve una copia del juego sin abrir puertos). 32 imágenes en ~40 s: menú, paneles, Gacha (x1/x10), móvil, los 6 mapas, embestida, un aviso por jefe, furia, hierba/líquido y subida de nivel; informa de errores de JavaScript y FPS aproximados.
+- Texto del mapa en el HUD aclarado (`lighten`) para que se lea en los mapas azules y oscuros; etiquetas de los jefes más arriba para no tapar su barra de vida.
+- `scripts/smoke.js` comprueba que ninguna regla global de `canvas` sea `position:fixed` y que `#cv` sí lo sea.
+
 ## v0.8.2 — 2026-10-21 · Tragamonedas más baja, más ancha y sólo al tirar
 - **Más baja y más ancha:** el lienzo pasa de 280×150 a 320×108 (casi 3:1), con ventanas de rodillo apaisadas (80×40), casillas de 36 px y símbolos a escala 0,58.
 - **Sólo aparece al tirar:** el panel del Gacha se abre solo con las monedas y los botones; la máquina se despliega con una animación (`.slotwrap`, `max-height`) al pulsar «Tirar ×1» o «×10», debajo de los botones para que éstos no se muevan, y se queda hasta cerrar el panel. Antes ocupaba sitio desde el principio.

@@ -14,6 +14,19 @@ Regla: al **finalizar cada tarea** se añade una entrada arriba (la más recient
 
 ## Entradas
 
+### 2026-10-21 — v0.8.4: la hierba aguanta más
+- **Qué cambió:** vida de la hierba 10 → 22,5 (la mitad de una piedra, por petición del usuario); ya no la rompe un solo disparo y la visión reducida dura más.
+- **Ficheros:** `index.html` (`OBS_HP`), `scripts/capturas.py`, `scripts/smoke.js`, `README.md`, `CHANGELOG.md`
+- **Decisiones:** definida como `OBS_HP.piedra/2` para que siga la proporción si se cambia la vida de la piedra; con Ascuas Nv1 caen en dos disparos (~1,3 s), así que sigue siendo efímera si atacas de continuo.
+- **Pendiente / siguiente paso:** que el usuario la pruebe; si se quiere un efecto más duradero, subir más la vida o evitar que los proyectiles propios la rompan al salir; sincronizar y commitear cuando lo ordene.
+
+### 2026-10-21 — v0.8.3: causa raíz del «estirado» y herramienta de capturas
+- **Qué cambió:** `canvas{position:fixed;inset:0;...}` global → `#cv{...}`; arregla la tragamonedas (a pantalla completa y visible antes de tirar) y los sprites de Compañeros y Criaturario (amontonados en la esquina). Nuevo `scripts/capturas.sh`/`capturas.py` (Playwright en Docker). HUD del mapa aclarado y etiquetas de jefe más arriba.
+- **Ficheros:** `index.html` (CSS, `lighten`, etiquetas de jefe), `scripts/capturas.sh`, `scripts/capturas.py`, `scripts/smoke.js`, `.gitignore`, `README.md`, `CLAUDE.md`, `CHANGELOG.md`
+- **Decisiones:** las capturas se hacen con la imagen oficial `mcr.microsoft.com/playwright/python:v1.64.0-noble` (3,5 GB en disco, desechable con `--rm`) sirviendo la copia del juego dentro del contenedor (sin puertos ni red de la torre); instalada con permiso del usuario. Los ajustes de tamaño de v0.8.1/v0.8.2 compensaban un fallo de CSS que no era de tamaño.
+- **Hallazgo pendiente de decidir:** la hierba (10 de vida) se rompe al instante con cualquier disparo propio, así que la visión reducida casi no se nota si atacas; valorar más vida a la hierba o que los proyectiles no la rompan al salir.
+- **Pendiente / siguiente paso:** el usuario valora el tamaño real de la tragamonedas ahora que se ve bien; sincronizar y commitear cuando lo ordene.
+
 ### 2026-10-21 — v0.8.2: tragamonedas más baja y ancha, y sólo al tirar
 - **Qué cambió:** lienzo 280×150 → 320×108; la máquina está oculta (`.slotwrap` colapsada) hasta pulsar «Tirar» y se despliega debajo de los botones; sigue visible hasta cerrar el panel.
 - **Ficheros:** `index.html` (`SLOT_W/H/CELL`, `slotSymbol`, `slotDraw`, `panelGacha`, CSS `.slotwrap`), `scripts/smoke.js`, `README.md`, `CHANGELOG.md`

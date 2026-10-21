@@ -8,7 +8,7 @@ Juego tipo *Survivor* en **un solo `index.html`** (canvas + JS vanilla, sin depe
 3. Las secciones de `index.html` (comentadas) son: 1 datos · 2 guardado · 3 sprites · 4 audio · 4b música · 5 estado · 6 lógica (+«Mundo») · 7 dibujo · 8 menús · 9 bucle. Las tablas de la sección 1 son lo que se ajusta para equilibrar.
 
 ## Flujo de trabajo (acordado con el usuario)
-1. Implementar y ampliar `scripts/smoke.js` con aserciones exactas de lo nuevo.
+1. Implementar y ampliar `scripts/smoke.js` con aserciones exactas de lo nuevo. Si hay cambios visuales, ejecutar `scripts/capturas.sh` y **mirar las imágenes** (smoke.js no ve el CSS ni el dibujo: un `canvas{position:fixed}` global estuvo rompiendo fichas y tragamonedas sin que ninguna prueba lo notara).
 2. Probar en un servidor temporal que sirva **solo una copia** de `index.html` y `music/` (nunca el repo: tiene `.git` y `memory.md`), en LAN/Tailscale; apagarlo al terminar.
 3. **Solo cuando el usuario lo ordene:** `audit-secrets.sh` → `smoke.js` → `sync-dashboard.sh --apply` → commit. Nada de commit ni push por iniciativa propia.
 4. Si se sube de versión: `VERSION`/`VERSION_DATE` en `index.html`, primer encabezado de `CHANGELOG.md` y `README.md` a la vez (regla 003).
@@ -16,6 +16,7 @@ Juego tipo *Survivor* en **un solo `index.html`** (canvas + JS vanilla, sin depe
 
 ## Comandos
 ```
+bash scripts/capturas.sh [carpeta]       # capturas con Chromium sin pantalla: ÚSALO para comprobar lo visual antes de pedir al usuario que pruebe
 node scripts/smoke.js                    # debe acabar en "SMOKE OK"
 bash scripts/audit-secrets.sh            # antes de cada commit; debe salir "limpio"
 bash scripts/sync-dashboard.sh --apply   # copia index.html y music/ a la demo servida (simula por defecto)

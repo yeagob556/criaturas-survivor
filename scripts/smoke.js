@@ -14,7 +14,7 @@ global.AudioContext = class { constructor(){ this.currentTime = 0; this.state = 
 global.Audio = class { constructor(src){ this.src = src; this.paused = true; this.currentTime = 0; this.duration = NaN; this.handlers = {}; this.plays = 0; } addEventListener(k, f){ this.handlers[k] = f; } play(){ this.paused = false; this.plays++; return Promise.resolve(); } pause(){ this.paused = true; } };
 global.localStorage = { getItem: () => null, setItem: noop }; global.confirm = () => true;
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-global.__changelog = fs.readFileSync(path.join(__dirname, '..', 'CHANGELOG.md'), 'utf8'); global.__readme = fs.readFileSync(path.join(__dirname, '..', 'README.md'), 'utf8');
+global.__html = html; global.__changelog = fs.readFileSync(path.join(__dirname, '..', 'CHANGELOG.md'), 'utf8'); global.__readme = fs.readFileSync(path.join(__dirname, '..', 'README.md'), 'utf8');
 let src = html.match(/<script>([\s\S]*)<\/script>/)[1];
 src += `
 ;(function(){
@@ -271,6 +271,18 @@ src += `
   panelDex('c'); newRun(); G.enemies = [spawnBoss('fuego', 0, 0, 1000)]; draw(); G.enemies[0].bs.ph = 'wind'; startBossStep(G.enemies[0], ['fan', 'Ascuas']); draw(); G.enemies[0].enr = true; draw();
   console.log('MONSTRUOS OK');
 
+  // --- CSS: sólo el lienzo del juego (#cv) puede ocupar toda la pantalla (una regla global canvas con position fixed rompió Compañeros, Criaturario y la tragamonedas) ---
+  const css = __html.match(/<style>([\\s\\S]*?)<\\/style>/)[1];
+  if (/(^|[\\s,}])canvas\\s*\\{[^}]*position\\s*:\\s*fixed/.test(css)) throw new Error('FALLO: una regla CSS global de canvas con position:fixed saca los lienzos de las fichas');
+  if (!/#cv\\s*\\{[^}]*position\\s*:\\s*fixed/.test(css)) throw new Error('FALLO: el lienzo del juego (#cv) debe ser position:fixed');
+  console.log('CSS OK');
+  // --- la hierba aguanta la mitad que una piedra: sobrevive al primer disparo de Ascuas y cae con el segundo ---
+  eq(OBS_HP.hierba, OBS_HP.piedra / 2, 'hierba = mitad de una piedra');
+  getChunk = () => []; newRun(); G.px = G.py = 0; sombraMap(); { const hb = mkO('hierba', 0, 0, 40); world([hb]); G.enemies = [mk('planta', 200, 0, {spd:0})]; G.moves = [{id:'ascuas', lvl:1, t:0, links:[]}];
+    for (let i = 0; i < 40; i++) { G.hp = G.maxhp; update(1 / 60); if (hb.hp < OBS_HP.hierba) break; }
+    eq(hb.dead ? 1 : 0, 0, 'la hierba sobrevive al primer disparo'); eq(hb.hp < OBS_HP.hierba ? 1 : 0, 1, 'el primer disparo la daña');
+    for (let i = 0; i < 60 * 3 && !hb.dead; i++) { G.hp = G.maxhp; update(1 / 60); } eq(hb.dead ? 1 : 0, 1, 'cae con el segundo disparo'); }
+  console.log('HIERBA OK');
   // --- version coherente con la documentacion ---
   const top = (__changelog.match(/^## v(\\d+\\.\\d+\\.\\d+)/m) || [])[1]; if (top !== VERSION) throw new Error('FALLO version: index.html=' + VERSION + ' CHANGELOG=' + top);
   if (!__readme.includes('v' + VERSION)) throw new Error('FALLO el README no menciona la version v' + VERSION);
