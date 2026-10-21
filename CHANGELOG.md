@@ -2,6 +2,12 @@
 
 Versionado: `0.x.0` por cada mejora (la 0.1.0 es la primera versión); `0.x.y` para correcciones. La versión que muestra el juego (`VERSION` en `index.html`) debe coincidir con el primer encabezado de este fichero.
 
+## v0.10.2 — 2026-10-21 · Arreglo: el Titán congelaba la pantalla
+- **Causa:** unos 10 s después de despertar, al Titán le tocaba su primer **descanso**. Ese paso llevaba como tipo el del propio Titán (`primordio`), que no existe en `TYPES`, y `startBossStep` lanzaba un `TypeError` al leer su color. Como el error saltaba dentro del bucle principal, el juego dejaba de pedir fotogramas y la pantalla se quedaba congelada (afectaba a la v0.10.0 y a la v0.10.1, también publicadas).
+- **Arreglo:** el descanso ya no lleva tipo y conserva el del último ataque (siempre un tipo real); `startBossStep` ignora tipos inexistentes.
+- **Bucle a prueba de errores:** `frame` ejecuta `update`, `draw` y la música en `seguro(...)`: un error se anota en la consola una sola vez y el bucle **sigue**, en vez de dejar la pantalla congelada.
+- `scripts/smoke.js`: el Titán actúa solo durante 200 s alternando cerca y lejos, con dibujo, y debe usar sus 10 tipos de paso sin errores; el bucle sigue pidiendo fotogramas aunque `update` lance un error y no repite el aviso. Las pruebas anteriores dejaban al Titán en pausa (`bs.t = -999`) y no lo veían actuar.
+
 ## v0.10.1 — 2026-10-21 · El Titán: 10× de vida, regeneración y adaptación a tu daño
 - **Vida ×10:** el Titán tiene 10 veces la vida de un legendario normal de ese mismo momento (`10 × bossHp(t, n)`; +50% por cada Titán anterior). Con la fórmula actual, a los 20 min con 5 legendarios ya aparecidos son 87.000 (antes 42.000).
 - **Regeneración muy pequeña:** 0,1% de su vida máxima por segundo (`MEGA.regen`).

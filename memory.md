@@ -14,6 +14,13 @@ Regla: al **finalizar cada tarea** se añade una entrada arriba (la más recient
 
 ## Entradas
 
+### 2026-10-21 — v0.10.2: el Titán congelaba la pantalla
+- **Qué cambió:** el primer descanso del Titán (≈10 s tras despertar) lanzaba `TypeError` al leer `TYPES['primordio']` y mataba el bucle principal; ahora el descanso no lleva tipo, `startBossStep` ignora tipos inexistentes y `frame` usa `seguro(...)` para no morir por un error.
+- **Ficheros:** `index.html` (`startBossStep`, `megaPick`, `frame`, `seguro`), `scripts/smoke.js`, `README.md`, `CHANGELOG.md`, `CLAUDE.md`
+- **Decisiones:** reproducido primero en Node dejando actuar al Titán sin trucos; las pruebas anteriores lo mantenían en pausa (`bs.t = -999`) y por eso no lo vieron. La versión 0.10.0/0.10.1 sigue en la demo y la pública hasta que el usuario ordene sincronizar.
+- **Lección:** probar a los jefes **actuando solos** durante minutos, no sólo paso a paso.
+- **Pendiente:** el usuario confirma en la versión de prueba y ordena sincronizar demo y pública (recomendado: la pública tiene el fallo a los 20 min).
+
 ### 2026-10-21 — v0.10.1: el Titán, 10× de vida, regeneración y adaptación al daño
 - **Qué cambió:** vida = 10 × `bossHp(t, n)` (+50% por Titán); regeneración 0,1%/s; `megaAdapt`: con poco daño se impacienta (+40% vel, +25% daño, +30% cadencia) y con mucho gana armadura (hasta 50%); HUD con las etiquetas.
 - **Ficheros:** `index.html` (`MEGA`, `bossHp`, `megaK`, `megaAdapt`, `hurt`, `bossStep`, HUD), `scripts/smoke.js`, `scripts/capturas.py`, `README.md`, `CHANGELOG.md`

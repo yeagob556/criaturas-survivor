@@ -110,7 +110,7 @@ const fmtT = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(Mat
 
 /* ---------- 1. DATOS ---------- */
 // Versión visible en el menú, la Guía y la esquina del juego. Debe coincidir con el último encabezado de CHANGELOG.md (lo comprueba scripts/smoke.js).
-const VERSION = '0.10.1', VERSION_DATE = '2026-10-21';
+const VERSION = '0.10.2', VERSION_DATE = '2026-10-21';
 const TYPES = {
   fuego:{n:'Fuego',c:'#ff7a3d',h:18}, agua:{n:'Agua',c:'#4aa8ff',h:205}, planta:{n:'Planta',c:'#5fcf6a',h:120},
   electrico:{n:'Eléctrico',c:'#ffd93b',h:50}, sombra:{n:'Sombra',c:'#8a5cc2',h:270}, dragon:{n:'Dragón',c:'#4f6bff',h:230}
@@ -644,7 +644,7 @@ function megaPick(e, dist, peek){                          // el siguiente ataqu
   const b = e.bs, order = Object.keys(TYPES);
   if(b.summon > 0 && minionsAlive() < MEGA.maxMinions){ const t = order[b.sumI % order.length];
     if(!peek){ b.summon--; b.sumI++; b.lastSummon = G.t; b.combo = 0; } return ['summon', 'Invocar a ' + LEG[t].name, t]; }
-  if(b.combo >= MEGA.rest){ if(!peek) b.combo = 0; return ['rest', 'Descanso', e.type]; }
+  if(b.combo >= MEGA.rest){ if(!peek) b.combo = 0; return ['rest', 'Descanso']; }
   const band = megaBand(dist), list = MEGA_MOVES[band], st = list[b.cnt[band] % list.length];
   if(!peek){ b.cnt[band]++; b.combo++; }
   return st;
@@ -678,7 +678,8 @@ function enemyDash(e, dt, dist, dx, dy){                   // embestida con avis
 }
 function startBossStep(e, step){
   const b = e.bs, [kind, name, atk] = step, A = BOSS_ATK[kind], rf = reachOf(e);
-  b.atk = atk || e.type; if(e.mega) e.hue = TYPES[b.atk].h;            // el Titán cambia de color según el tipo del ataque
+  if(atk && TYPES[atk]) b.atk = atk; else if(!b.atk) b.atk = TYPES[e.type] ? e.type : 'dragon';   // el descanso no trae tipo: se conserva el del último ataque (siempre un tipo real)
+  if(e.mega && atk && TYPES[atk]) e.hue = TYPES[atk].h;                 // el Titán cambia de color según el tipo del ataque
   b.kind = kind; b.name = name; b.t = 0; b.fired = 0; b.hit = false; b.label = name; b.tg = null; b.ph = kind === 'rest' ? 'rest' : 'wind';
   b.ang = Math.atan2(G.py - e.y, G.px - e.x);               // se fija al empezar el aviso: moverse a tiempo lo esquiva
   if(kind === 'rest') return;
@@ -1600,10 +1601,15 @@ cv.addEventListener('pointerup', endTouch); cv.addEventListener('pointercancel',
 
 /* ---------- 9. BUCLE PRINCIPAL ---------- */
 let last = performance.now();
+const errVistos = new Set();
+function seguro(f){                                         // un error del juego se anota y NO detiene el bucle (antes dejaba la pantalla congelada)
+  try{ f(); }catch(err){ const k = String(err && err.message); if(!errVistos.has(k)){ errVistos.add(k); console.error('Error en el juego:', err); } return false; }
+  return true;
+}
 function frame(now){
   const dt = Math.min(0.05, (now-last)/1000); last = now;
-  musicTick();
-  if(G){ if(!G.paused && !G.over) update(dt); draw(); }
+  seguro(musicTick);
+  if(G){ if(!G.paused && !G.over) seguro(() => update(dt)); seguro(draw); }
   else { ctx.setTransform(1,0,0,1,0,0); ctx.fillStyle='#1b1528'; ctx.fillRect(0,0,cv.width,cv.height); }
   requestAnimationFrame(frame);
 }

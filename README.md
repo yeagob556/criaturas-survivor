@@ -1,6 +1,6 @@
 # Criaturas Survivor
 
-**Versión actual: v0.10.1** (2026-10-21). La versión se ve en el menú, en la Guía y en la esquina inferior derecha durante la partida.
+**Versión actual: v0.10.2** (2026-10-21). La versión se ve en el menú, en la Guía y en la esquina inferior derecha durante la partida.
 
 Juego de supervivencia tipo *Survivor* para el navegador: eliges un compañero, esquivas hordas, subes de nivel y mejoras tus ataques. Todo el juego es **un solo `index.html`** (canvas + JavaScript, sin dependencias ni servidor); la música de fondo son seis ficheros de audio opcionales. Proyecto de aprendizaje.
 
@@ -94,4 +94,4 @@ Hay tres entornos servidos por contenedores nginx de solo lectura en `dashboard-
 Ver [`rules/README.md`](rules/README.md): 001 sin assets oficiales · 002 música de IA declarada y anotada · 003 versión coherente con el CHANGELOG.
 
 ## Estado y pendientes
-Jugable y en mejora continua (v0.10.1). Pendiente: probar a mano en un navegador real (rendimiento con muchos objetos, atascos entre obstáculos), afinar el equilibrio (la subida de nivel es muy rápida), subir el repo a GitHub (privado) y añadir un monitor de disponibilidad en el homelab. Ver `memory.md`.
+Jugable y en mejora continua (v0.10.2). Pendiente: probar a mano en un navegador real (rendimiento con muchos objetos, atascos entre obstáculos), afinar el equilibrio (la subida de nivel es muy rápida), subir el repo a GitHub (privado) y añadir un monitor de disponibilidad en el homelab. Ver `memory.md`.

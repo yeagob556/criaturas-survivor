@@ -392,6 +392,17 @@ src += `
   { const m = nuevoMega(); const ref = m.maxhp / MEGA.killTime; for (let i = 0; i < 60 * 200; i++) { m.ad.log += ref * 40 / 60; megaAdapt(m, 1 / 60); } eq(m.ad.armor, MEGA.armorMax, 'la armadura tiene tope'); }
   { const m = nuevoMega(); m.ad.agg = 1; const a0 = m.bs.t; m.bs.ph = 'rec'; m.bs.t = -10; m.x = 100; update(1); near(m.bs.t, -10 + 1 * (1 + MEGA.aggRate), 'impaciente prepara los ataques mas deprisa'); }
   { const m = nuevoMega(); m.ad.agg = 0.8; m.ad.armor = 0.3; G.px = G.py = 0; draw(); }
+  // --- el Titan actuando SOLO, sin trucos de pausa (en la v0.10.0/1 el primer descanso lanzaba un error y congelaba la pantalla) ---
+  { newRun(); getChunk = () => []; G.moves = []; G.evT = 1e9; G.nextBoss = 1e9; G.px = G.py = 0; G.hp = G.maxhp = 1e9; G.t = MEGA.first - 1; const vistos = {};
+    for (let i = 0; i < 60 * 200; i++) { G.hp = G.maxhp; G.inv = 0; G.enemies = G.enemies.filter(e => e.mega || e.minion); G.px = (i % 600 < 300) ? 0 : 700; G.py = 0; if (G.paused) chooseOffer(curOffer.opts[0]);
+      update(1 / 60); if (i % 5 === 0) draw(); if (G.mega) vistos[G.mega.bs.kind] = (vistos[G.mega.bs.kind] || 0) + 1; }
+    for (const k of ['summon', 'pulse', 'ring', 'fan', 'zone', 'burst', 'dash', 'tornado', 'rain', 'rest']) if (!vistos[k]) throw new Error('FALLO en 200 s el Titan no uso: ' + k + ' ' + JSON.stringify(vistos));
+    const m = G.mega; if (!TYPES[m.bs.atk]) throw new Error('FALLO tipo de ataque invalido: ' + m.bs.atk); startBossStep(m, ['rest', 'Descanso']); startBossStep(m, ['rest', 'Descanso', 'primordio']); if (!TYPES[m.bs.atk]) throw new Error('FALLO un descanso deja un tipo invalido'); draw(); }
+  // un error del juego se anota y NO detiene el bucle principal (antes la pantalla se quedaba congelada)
+  { let pidos = 0, anotados = 0; const rafPrev = requestAnimationFrame, updPrev = update, errPrev = console.error; requestAnimationFrame = () => { pidos++; }; console.error = () => { anotados++; };
+    newRun(); update = () => { throw new Error('prueba'); }; frame(100); frame(200); frame(300); update = updPrev; console.error = errPrev; requestAnimationFrame = rafPrev;
+    eq(pidos, 3, 'el bucle sigue pidiendo fotogramas aunque update falle'); eq(anotados, 1, 'el mismo error se anota una sola vez'); }
+  console.log('TITAN NATURAL Y BUCLE OK');
   // --- version coherente con la documentacion ---
   const top = (__changelog.match(/^## v(\\d+\\.\\d+\\.\\d+)/m) || [])[1]; if (top !== VERSION) throw new Error('FALLO version: index.html=' + VERSION + ' CHANGELOG=' + top);
   if (!__readme.includes('v' + VERSION)) throw new Error('FALLO el README no menciona la version v' + VERSION);
