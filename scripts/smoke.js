@@ -8,6 +8,10 @@ const mkEl = () => ({ classList: { add: noop, remove: noop, toggle: noop, contai
 global.document = { querySelector: s => els[s] || (els[s] = mkEl()), createElement: () => mkEl() };
 global.window = global; global.innerWidth = 960; global.innerHeight = 540; global.devicePixelRatio = 1;
 global.addEventListener = noop; global.requestAnimationFrame = noop;
+// audio falso: registra fundidos y reproducciones para comprobar la logica de la musica
+const gainNode = () => ({gain:{value:1, ramps:[], cancelScheduledValues: noop, setValueAtTime(v){ this.value = v; }, linearRampToValueAtTime(v, t){ this.ramps.push([v, t]); }, setTargetAtTime(v){ this.target = v; }}, connect: noop});
+global.AudioContext = class { constructor(){ this.currentTime = 0; this.state = 'running'; this.destination = {}; } createGain(){ return gainNode(); } createMediaElementSource(){ return {connect: noop}; } };
+global.Audio = class { constructor(src){ this.src = src; this.paused = true; this.currentTime = 0; this.duration = NaN; this.handlers = {}; this.plays = 0; } addEventListener(k, f){ this.handlers[k] = f; } play(){ this.paused = false; this.plays++; return Promise.resolve(); } pause(){ this.paused = true; } };
 global.localStorage = { getItem: () => null, setItem: noop }; global.confirm = () => true;
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 let src = html.match(/<script>([\s\S]*)<\/script>/)[1];
@@ -159,6 +163,25 @@ src += `
   const names = new Set(Object.values(BIOME).map(b => b.n.mont)); eq(names.size, MAPS.length, 'montanas distintas por mapa');
   newRun(); world(['montana', 'arbol', 'piedra', 'hierba', 'liquido'].map((k, i) => mkO(k, 40 + i * 60, 30, 30))); for (const mp of MAPS) { setMap(mp); draw(); }
   console.log('OBSTACULOS OK');
+  // --- musica ---
+  getChunk = () => [];
+  const mapa = t => MAPS.find(x => x.type === t);
+  newRun(); setMap(mapa('agua')); eq(music.cur === 'agua' ? 1 : 0, 1, 'suena la pista del mapa'); const ta = music.tracks.agua;
+  eq(ta.a.src === 'music/agua.mp3' ? 1 : 0, 1, 'ruta de la pista'); eq(ta.a.loop ? 1 : 0, 1, 'pista en bucle'); eq(ta.a.paused ? 1 : 0, 0, 'reproduciendo'); eq(ta.g.gain.ramps.at(-1)[0], 1, 'sube la nueva pista'); eq(ta.g.gain.ramps.at(-1)[1], AC.currentTime + MUSIC_FADE, 'fundido de 3 s');
+  const p0 = ta.a.plays; setMap(mapa('sombra')); eq(music.cur === 'sombra' ? 1 : 0, 1, 'cambia de pista'); eq(ta.g.gain.ramps.at(-1)[0], 0, 'baja la anterior'); eq(ta.a.paused ? 1 : 0, 0, 'la anterior sigue sonando durante el fundido');
+  AC.currentTime += MUSIC_FADE + 1; musicTick(); eq(ta.a.paused ? 1 : 0, 1, 'la anterior se pausa al acabar el fundido'); eq(music.tracks.sombra.a.paused ? 1 : 0, 0, 'la nueva sigue');
+  setMap(mapa('agua')); eq(music.tracks.agua === ta ? 1 : 0, 1, 'se reutiliza la pista (recuerda por donde iba)'); eq(ta.a.plays, p0 + 1, 'se reanuda'); eq(ta.stopAt, 0, 'sin parada pendiente');
+  setMap(mapa('sombra')); setMap(mapa('agua')); AC.currentTime += 10; musicTick(); eq(ta.a.paused ? 1 : 0, 0, 'volver antes de que acabe el fundido no la corta');
+  // bucle suave
+  ta.a.duration = 60; ta.a.currentTime = 0.5; musicTick(); near(ta.lg.gain.value, 0.25, 'entrada suave tras el bucle'); ta.a.currentTime = 30; musicTick(); eq(ta.lg.gain.value, 1, 'mitad de la pista a pleno volumen'); ta.a.currentTime = 59; musicTick(); near(ta.lg.gain.value, 0.5, 'salida suave antes del bucle');
+  // pista inexistente: silencio sin errores y se sigue jugando
+  newRun(); music.tracks.dragon && music.tracks.dragon.a.handlers.error && 0; playMusic('dragon'); music.tracks.dragon.a.handlers.error(); eq(music.bad.dragon ? 1 : 0, 1, 'pista ausente marcada'); const antes = music.cur; setMap(mapa('dragon')); eq(music.cur === antes || music.cur === null ? 1 : 0, 1, 'mapa sin pista no rompe nada'); update(1 / 60);
+  // pausa y apagado
+  newRun(); setMap(mapa('planta')); togglePause(true); near(music.master.gain.target, MUSIC_VOL * 0.3, 'pausa baja la musica'); togglePause(false); near(music.master.gain.target, MUSIC_VOL, 'reanudar la sube');
+  setMusic(false); eq(SAVE.music ? 1 : 0, 0, 'musica desactivada'); eq(music.cur === null ? 1 : 0, 1, 'sin pista activa'); setMap(mapa('fuego')); eq(music.cur === null ? 1 : 0, 1, 'no suena con la musica apagada');
+  setMusic(true); eq(music.cur === G.map.type ? 1 : 0, 1, 'al reactivarla suena la del mapa actual');
+  G.hp = 0; endRun(); eq(music.cur === null ? 1 : 0, 1, 'fin de partida apaga la musica');
+  console.log('MUSICA OK');
   G.hp = 0; endRun();
   panelCompanions(); panelUpgrades(); panelGacha(); panelStats(); panelGuide(); refreshMenu();
   console.log('SMOKE OK');

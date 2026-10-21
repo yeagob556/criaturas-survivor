@@ -14,6 +14,13 @@ Regla: al **finalizar cada tarea** se añade una entrada arriba (la más recient
 
 ## Entradas
 
+### 2026-10-21 — Mejora 5: música de fondo por mapa
+- **Qué cambió:** motor de música (`playMusic`/`musicTick` en la sección 4b), botón Música, `scripts/generar_musica.sh` y `sync-dashboard.sh` con pistas; licencia de ACE-Step verificada (Apache-2.0).
+- **Ficheros:** `index.html` (sección 4b), `scripts/generar_musica.sh`, `scripts/sync-dashboard.sh`, `scripts/smoke.js`, `.gitignore`, `README.md`, `CHANGELOG.md`
+- **Decisiones:** pistas como ficheros opcionales (no embebidas en base64) para no inflar el HTML; el motor tolera que falten. Pendiente decidir si la IA da calidad suficiente (si no, alternativa: chillout procedural con WebAudio, sin ficheros).
+- **Hecho:** 6 pistas generadas con ACE-Step (90 s, ~2,6 MB cada una, fuera de Git) y anotadas en el catálogo de `musica-ia-lofi`; `media-src 'self'` añadido al CSP de `nginx.conf` y `nginx-publico.conf` (dashboard-stack). Ojo: esos ficheros están montados como fichero suelto; tras editarlos con `sed -i` hay que **reiniciar** los contenedores (un `nginx -s reload` sigue leyendo el inodo viejo).
+- **Pendiente / siguiente paso:** que el usuario valore la calidad; si alguna pista no convence, regenerar con otro prompt o semilla (`generar_musica.sh --apply <tipo>`).
+
 ### 2026-10-21 — Mejora 4: obstáculos que cambian con el mapa
 - **Qué cambió:** mundo por trozos con montañas, árboles, piedras, hierba alta y líquidos; aspecto, nombre y efecto salen del tipo del mapa actual; colisiones, destrucción y visión reducida.
 - **Ficheros:** `index.html` (`BIOME`, `OBS_HP`, sección «Mundo»: `getChunk`/`refreshNear`/`hitObs`/`hitArea`/`liqAt`, `update`, `draw*`), `scripts/smoke.js`, `README.md`, `CHANGELOG.md`

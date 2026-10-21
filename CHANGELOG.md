@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-10-21 (mejora 5)
+- **Música de fondo por mapa:** una pista chillout por tipo (`music/<tipo>.mp3`, opcional: sin fichero, ese mapa va sin música). Fundido cruzado de 3 s al cambiar de mapa, cada pista recuerda por dónde iba, entrada/salida suaves de 2 s en el punto de bucle, volumen bajado al pausar, botón «Música» en el menú y en pausa (guardado). `<audio>` + WebAudio (el volumen de `<audio>` no se controla en iOS); el CSP del servidor sólo necesita `media-src 'self'`.
+- `scripts/generar_musica.sh`: genera las 6 pistas con ACE-Step en el ComfyUI del PC (vía `creacion-local`), misma tonalidad y tempos parecidos; las anota en el catálogo de `musica-ia-lofi` (regla 001). Las pistas no se suben a Git (`.gitignore`); `scripts/sync-dashboard.sh` las copia a la demo.
+- Licencia de ACE-Step verificada el 21/10: Apache-2.0 en el repo oficial y en la ficha de los pesos; condición ética de declarar el uso de IA (la Guía lo indica).
+- `scripts/smoke.js` simula el audio y comprueba fundidos, reutilización de pistas, pausa de la anterior, bucle suave, pista ausente, pausa y apagado.
+
 ## 2026-10-21 (mejora 4)
 - **Obstáculos por mapa:** mundo infinito generado por trozos de 480 px con semilla por partida (`getChunk`, determinista). Cinco clases: montaña (sólida, indestructible), árbol (sólido, indestructible), piedra (sólida, se rompe, 30% de soltar moneda), hierba alta (se atraviesa, se rompe, reduce la visión dentro) y líquido (se atraviesa).
 - **Cambian con el ambiente:** la clase se guarda, pero nombre, aspecto y efecto salen del tipo del mapa actual (`BIOME`): volcán/lava, iceberg/aguas profundas, colina/pantano, pico de cuarzo/charco cargado, risco/brea, cumbre/ácido. Al rotar el mapa todo cambia a la vez. Líquidos: lava 7, charco cargado 5 y ácido 6 de daño por segundo; aguas ×0.6, pantano ×0.65 y brea ×0.5 de velocidad. Las criaturas del tipo del mapa son inmunes.

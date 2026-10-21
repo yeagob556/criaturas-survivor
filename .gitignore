@@ -7,3 +7,4 @@
 *.sqlite
 node_modules/
 secrets/
+music/*.mp3

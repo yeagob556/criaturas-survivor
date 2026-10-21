@@ -56,6 +56,7 @@
     <button id="bDex">Criaturario</button>
     <button id="bGuide">Guía</button>
     <button id="bSound">Sonido: sí</button>
+    <button id="bMusic">Música: sí</button>
   </div>
   <p class="hint">Monedas: <span class="coin" id="mCoins">0</span> · Los datos se guardan en este navegador</p>
 </div></div>
@@ -78,7 +79,7 @@
 <div class="ov" id="ovPause"><div class="box center">
   <h2>Pausa</h2>
   <p class="sub">WASD / flechas: moverse · 1–4: movimiento principal · Q/E: ciclar · Esc: pausa</p>
-  <div class="menu"><button id="bResume">Continuar</button><button id="bSnd2">Sonido</button><button id="bQuit">Abandonar run</button></div>
+  <div class="menu"><button id="bResume">Continuar</button><button id="bSnd2">Sonido</button><button id="bMus2">Música</button><button id="bQuit">Abandonar run</button></div>
 </div></div>
 
 <!-- FIN DE PARTIDA -->
@@ -262,7 +263,7 @@ const DEX = [
 const KEY = 'criasurvivor-v1';
 function defaultSave(){
   return ensureDex({coins:0, owned:{brasito:{shiny:false}, gotin:{shiny:false}, brotin:{shiny:false}}, sel:'brasito',
-          up:{hp:0,dmg:0,spd:0,mag:0,coin:0}, stats:{runs:0,bestT:0,bestL:0,kills:0}, sound:true, dex:{c:{},m:{}}});
+          up:{hp:0,dmg:0,spd:0,mag:0,coin:0}, stats:{runs:0,bestT:0,bestL:0,kills:0}, sound:true, music:true, dex:{c:{},m:{}}});
 }
 function loadSave(){
   try{ const s = JSON.parse(localStorage.getItem(KEY)); if(s && s.owned) return ensureDex(Object.assign(defaultSave(), s)); }catch(e){}
@@ -331,6 +332,47 @@ const sfx = {
   boss(){ beep(90,0.6,'sawtooth',0.07,-30); },
   die(){ beep(300,0.6,'sawtooth',0.07,-250); },
 };
+
+/* ---------- 4b. MÚSICA (ficheros opcionales music/<tipo>.mp3, generados con IA local) ---------- */
+// Una pista chillout por tipo de mapa. Si el fichero no existe, ese mapa va sin música (no es un error).
+// Al cambiar de mapa hay fundido cruzado y cada pista recuerda por dónde iba. Se usa <audio> + WebAudio porque el volumen
+// de <audio> no se puede controlar en iOS; así el CSP sólo necesita media-src 'self'.
+const MUSIC_VOL = 0.30, MUSIC_FADE = 3, MUSIC_LOOP_FADE = 2;
+const music = {master:null, tracks:{}, cur:null, bad:{}, duck:1};
+function musicTrack(type){
+  let t = music.tracks[type]; if(t) return t;
+  const a = new Audio('music/' + type + '.mp3'); a.loop = true; a.preload = 'auto';
+  a.addEventListener('error', () => { music.bad[type] = true; if(music.cur === type) music.cur = null; });
+  const g = AC.createGain(), lg = AC.createGain(); g.gain.value = 0;      // g: fundido entre pistas; lg: suaviza el punto de bucle
+  AC.createMediaElementSource(a).connect(lg); lg.connect(g); g.connect(music.master);
+  return music.tracks[type] = {a, g, lg, stopAt:0};
+}
+function fadeTrack(t, to, secs, thenPause){
+  const now = AC.currentTime;
+  t.g.gain.cancelScheduledValues(now); t.g.gain.setValueAtTime(t.g.gain.value, now); t.g.gain.linearRampToValueAtTime(to, now + secs);
+  t.stopAt = thenPause ? now + secs + 0.1 : 0;
+}
+function playMusic(type){
+  if(!SAVE.music) return;
+  try{
+    AC = AC || new (window.AudioContext||window.webkitAudioContext)(); if(AC.state === 'suspended' && AC.resume) AC.resume();
+    if(!music.master){ music.master = AC.createGain(); music.master.gain.value = MUSIC_VOL*music.duck; music.master.connect(AC.destination); }
+    if(music.cur === type || music.bad[type]) return;
+    const prev = music.cur && music.tracks[music.cur], nx = musicTrack(type);
+    if(prev) fadeTrack(prev, 0, MUSIC_FADE, true);
+    fadeTrack(nx, 1, MUSIC_FADE);
+    const pr = nx.a.play(); if(pr && pr.catch) pr.catch(() => { music.bad[type] = true; if(music.cur === type) music.cur = null; });
+    music.cur = type;
+  }catch(e){}
+}
+function stopMusic(secs=1.5){ if(!AC || !music.cur) return; fadeTrack(music.tracks[music.cur], 0, secs, true); music.cur = null; }
+function duckMusic(v){ music.duck = v; if(music.master) music.master.gain.setTargetAtTime(MUSIC_VOL*v, AC.currentTime, 0.2); }
+function musicTick(){      // cada fotograma: pausa las pistas ya apagadas y suaviza el punto donde la pista vuelve a empezar
+  if(!AC) return;
+  for(const k in music.tracks){ const t = music.tracks[k], a = t.a;
+    if(t.stopAt && AC.currentTime >= t.stopAt){ a.pause(); t.stopAt = 0; }
+    if(!a.paused && a.duration > MUSIC_LOOP_FADE*3) t.lg.gain.value = clamp(Math.min(a.currentTime, a.duration - a.currentTime) / MUSIC_LOOP_FADE, 0, 1); }
+}
 
 /* ---------- 5. ESTADO ---------- */
 const cv = $('#cv'), ctx = cv.getContext('2d');
@@ -401,6 +443,7 @@ function setMap(m, first){
     G.banner = {s:`¡${m.name}! ${t.n} ×${MAP_BUFF} ${TYPE_BUFF[m.type].label}`, t:3.5};
     G.fx.push({k:'mapflash', life:0.8, t:0.8, col:t.c}); beep(330,0.2,'triangle',0.05,220);
   }
+  playMusic(m.type);
 }
 const changeMap = () => setMap(pick(MAPS.filter(x => x !== G.map)));
 function discover(id, label){
@@ -803,7 +846,7 @@ function closeLevelUp(){
 
 /* ---------- Fin de run ---------- */
 function endRun(){
-  if(G.over) return; G.over = true; sfx.die();
+  if(G.over) return; G.over = true; sfx.die(); stopMusic();
   const earned = Math.floor((G.coins + Math.floor(G.t/30) + Math.floor(G.kills/20)) );
   const st = SAVE.stats; st.runs++; st.kills += G.kills; st.bestT = Math.max(st.bestT, G.t); st.bestL = Math.max(st.bestL, G.lvl);
   SAVE.coins += earned; persist();
@@ -985,7 +1028,7 @@ function refreshMenu(){
   drawIn($('#menuSprite'), sp, sh);
   $('#menuName').innerHTML = `<b>${sp.name}</b>${sh?' ✨':''} <span class="tag" style="background:${TYPES[sp.type].c}">${TYPES[sp.type].n}</span>`;
   $('#mCoins').textContent = SAVE.coins;
-  $('#bSound').textContent = 'Sonido: ' + (SAVE.sound?'sí':'no');
+  $('#bSound').textContent = 'Sonido: ' + (SAVE.sound?'sí':'no'); $('#bMusic').textContent = $('#bMus2').textContent = 'Música: ' + (SAVE.music?'sí':'no');
 }
 function panelCompanions(){
   openPanel('Compañeros', '<div class="grid" id="cg"></div><p class="hint">Consigue más compañeros y versiones shiny (+10% daño) en el Gacha.</p>');
@@ -1072,7 +1115,8 @@ function panelGuide(){
     Cada 4 minutos aparece un legendario. Cada 75 segundos cambia el mapa: las criaturas del tipo del mapa (tú también) ganan ×1.2 en su especialidad. Mira el Criaturario para ver todas.
     Además de movimientos hay pasivas, que mejoran sin disparar nada. Se agrupan en ramas (Agilidad, Fortaleza, Poder, Ingenio) y las opuestas se excluyen: al coger una de Agilidad ya no salen las de Fortaleza, y al coger una de Poder ya no salen las de Ingenio. Puedes llevar 4 pasivas, hasta nivel 5.
     Cada tipo es fuerte contra uno y débil contra otro (Fuego > Planta > Agua > Fuego y Eléctrico > Dragón > Sombra > Eléctrico): ×1.3 a favor y ×0.75 en contra, tanto en tus ataques como en los suyos. Los movimientos de control aplican un estado a los hostiles (puntitos de color bajo ellos): Marea los ralentiza, Raíces los inmoviliza, Estática los paraliza, Brasas los quema, Niebla reduce su alcance y Ciclón los arrastra y junta. Los legendarios resisten: ni se inmovilizan ni se paralizan.
-    El mundo tiene obstáculos que cambian de aspecto con el mapa: montañas y árboles son sólidos e indestructibles (se rodean); las piedras son sólidas pero se rompen con tus ataques (a veces sueltan una moneda); la hierba alta se atraviesa, pero dentro reduce la visión y también se rompe; y los líquidos (lava, aguas, pantano…) dañan o ralentizan a todos menos a las criaturas del tipo del mapa. Las monedas sirven para mejoras permanentes y el Gacha.</p>`);
+    El mundo tiene obstáculos que cambian de aspecto con el mapa: montañas y árboles son sólidos e indestructibles (se rodean); las piedras son sólidas pero se rompen con tus ataques (a veces sueltan una moneda); la hierba alta se atraviesa, pero dentro reduce la visión y también se rompe; y los líquidos (lava, aguas, pantano…) dañan o ralentizan a todos menos a las criaturas del tipo del mapa. Las monedas sirven para mejoras permanentes y el Gacha.
+    La música de fondo cambia con el tipo de mapa (botón «Música» del menú); si hay pistas, están generadas con IA (ACE-Step v1, licencia Apache-2.0).</p>`);
 }
 function setSound(v){ SAVE.sound = v; persist(); $('#bSound').textContent = 'Sonido: ' + (v?'sí':'no'); $('#bSnd2').textContent = 'Sonido: ' + (v?'sí':'no'); }
 
@@ -1083,6 +1127,8 @@ $('#bComp').onclick = panelCompanions; $('#bUp').onclick = panelUpgrades; $('#bG
 $('#bStats').onclick = panelStats; $('#bDex').onclick = () => panelDex(); $('#bGuide').onclick = panelGuide;
 $('#pBack').onclick = () => hide('#ovPanel');
 $('#bSound').onclick = $('#bSnd2').onclick = () => setSound(!SAVE.sound);
+function setMusic(v){ SAVE.music = v; persist(); $('#bMusic').textContent = $('#bMus2').textContent = 'Música: ' + (v?'sí':'no'); if(v){ if(G && !G.over) playMusic(G.map.type); } else stopMusic(); }
+$('#bMusic').onclick = $('#bMus2').onclick = () => setMusic(!SAVE.music);
 $('#bResume').onclick = () => togglePause(false);
 $('#bQuit').onclick = () => { hide('#ovPause'); G.paused=false; G.hp = 0; endRun(); };
 $('#lReroll').onclick = () => { if(G.rerolls>0 && curOffer.kind==='normal'){ G.rerolls--; openLevelUp(offerOptions(G.pending[0])); } };
@@ -1092,6 +1138,7 @@ function togglePause(v){
   if(!G || G.over || $('#ovLvl').classList.contains('on')) return;
   G.paused = v===undefined ? !G.paused : v;
   $('#ovPause').classList.toggle('on', G.paused);
+  duckMusic(G.paused ? 0.3 : 1);
 }
 
 /* ---------- Entrada ---------- */
@@ -1121,6 +1168,7 @@ cv.addEventListener('pointerup', endTouch); cv.addEventListener('pointercancel',
 let last = performance.now();
 function frame(now){
   const dt = Math.min(0.05, (now-last)/1000); last = now;
+  musicTick();
   if(G){ if(!G.paused && !G.over) update(dt); draw(); }
   else { ctx.setTransform(1,0,0,1,0,0); ctx.fillStyle='#1b1528'; ctx.fillRect(0,0,cv.width,cv.height); }
   requestAnimationFrame(frame);
