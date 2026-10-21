@@ -1,0 +1,9 @@
+.bak*
+*.bak
+*.bak-*
+*.env
+.env*
+*.db
+*.sqlite
+node_modules/
+secrets/

@@ -1,0 +1,39 @@
+# Criaturas Survivor
+
+Juego de supervivencia tipo *Survivor* para el navegador: eliges un compañero, esquivas hordas, subes de nivel y mejoras tus ataques. Todo en **un solo `index.html`** (canvas + JavaScript, sin dependencias ni servidor). Proyecto de aprendizaje.
+
+Las criaturas se dibujan por código a partir de una semilla; no hay imágenes, sonidos ni nombres de terceros (ver `rules/001-sin-assets-oficiales.md`).
+
+## Cómo jugar
+Abre `index.html` en el navegador (o sírvelo con cualquier servidor estático).
+
+| Acción | Control |
+|---|---|
+| Moverse | WASD / flechas / arrastrar el dedo |
+| Atacar | Automático |
+| Movimiento principal (+25% daño) | 1–4 · Q/E |
+| Pausa | Esc |
+
+- Recoge gemas para subir de nivel y elige 1 de 3 recompensas (R cambia las opciones).
+- Un movimiento al nivel 5 **evoluciona**. Niveles 5, 15, 25…: un objeto (solo uno). Niveles 10, 20, 30…: **Vínculo**, que une dos movimientos en un hueco.
+- Cada 4 minutos llega un jefe legendario.
+- Las monedas compran mejoras permanentes y tiradas de Gacha (compañeros nuevos y versiones shiny, +10% daño).
+- El progreso se guarda en `localStorage` del navegador.
+
+## Estructura del código
+`index.html` está dividido en 9 secciones comentadas: 1 datos (`TYPES`, `SPECIES`, `MOVES`, `ITEMS`, `ENEMY_TYPES`, `UPGRADES`) · 2 guardado · 3 sprites procedurales · 4 audio (osciladores) · 5 estado de la run · 6 lógica (`update`, `fire`, subida de nivel) · 7 dibujo · 8 menús · 9 bucle principal.
+
+- Equilibrar: editar las tablas de la sección 1 y `xpNeed`.
+- Añadir un movimiento: entrada en `MOVES` + `case` en `fire()`.
+
+## Probar
+```
+node scripts/smoke.js          # simula 12 min de partida sin navegador
+bash scripts/audit-secrets.sh  # antes de cada commit
+```
+
+## Publicación (homelab)
+La copia servida por el homelab se actualiza con `scripts/sync-dashboard.sh --apply` (simula por defecto). Detalles de despliegue en el repo `dashboard-stack`.
+
+## Estado
+Jugable. Pendiente de probar a mano en navegador real y de afinar el equilibrio (la subida de nivel es muy rápida). Ver `memory.md`.
