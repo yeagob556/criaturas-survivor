@@ -1,6 +1,6 @@
 # Criaturas Survivor
 
-**Versión actual: v0.6.0** (2026-10-21). La versión se ve en el menú, en la Guía y en la esquina inferior derecha durante la partida.
+**Versión actual: v0.8.0** (2026-10-21). La versión se ve en el menú, en la Guía y en la esquina inferior derecha durante la partida.
 
 Juego de supervivencia tipo *Survivor* para el navegador: eliges un compañero, esquivas hordas, subes de nivel y mejoras tus ataques. Todo el juego es **un solo `index.html`** (canvas + JavaScript, sin dependencias ni servidor); la música de fondo son seis ficheros de audio opcionales. Proyecto de aprendizaje.
 
@@ -28,10 +28,13 @@ Abre `index.html` en el navegador o sírvelo con cualquier servidor estático (p
 | Ventajas por tipo | Dos triángulos (Fuego > Planta > Agua > Fuego y Eléctrico > Dragón > Sombra > Eléctrico): ×1.3 a favor y ×0.75 en contra, en ambos sentidos | `STRONG`, `EFF_UP`, `EFF_DOWN` |
 | Control | Un movimiento por tipo con estado propio: ralentizar (agua), inmovilizar (planta), paralizar (eléctrico), quemar (fuego), reducir el alcance del enemigo (sombra) y tornado que junta (dragón); los legendarios resisten | `MOVES`, `status()` |
 | Obstáculos | Montañas y árboles (sólidos, indestructibles), piedras (sólidas, se rompen), hierba alta (reduce la visión, se rompe) y líquidos (dañan o ralentizan salvo al tipo del mapa); cambian de aspecto y efecto con cada mapa | `BIOME`, `getChunk()` |
-| Hostiles | 6 tipos que aparecen por tiempo + un legendario tipado cada 4 minutos | `ENEMY_TYPES`, `LEG` |
+| Hostiles | 6 tipos que aparecen por tiempo. Los violetas (Sombra) tienen la mitad de alcance. Chispamurci, Magmaroca y Dracoaleta **embisten** con el recorrido marcado en el suelo (esquivable) | `ENEMY_TYPES`, `REACH`, `enemyDash()` |
+| Jefes | Un legendario tipado cada 4 minutos que repite un **guion fijo de 5 ataques** de su tipo, con aviso en el suelo antes de cada uno y el siguiente visible sobre su cabeza; al 30% de vida se enfurece (+20% de daño). Sus ondas y zonas dejan estados en ti | `BOSS_SCRIPT`, `BOSS_ATK`, `bossStep()` |
+| Disparos | Los proyectiles, tuyos y enemigos, se paran contra montañas y árboles (no contra piedras) | `update()` |
 | Música | Una pista chillout por tipo de mapa con fundido cruzado de 3 s y botón «Música» | `music/`, `playMusic()` |
 | Criaturario | Enciclopedia de 18 criaturas y 6 mapas que se desbloquean al descubrirlos | `DEX`, `DESC` |
 | Progreso | Monedas → mejoras permanentes y Gacha; todo se guarda en `localStorage` | `UPGRADES`, `SAVE` |
+| Gacha | Tragamonedas retro **sólo visual**: criatura · tipo · desenlace (NEW / ✨ / +40); la tirada ya está decidida al girar | `gachaRoll()`, `slotSpin()`, `slotDraw()` |
 
 ## Estructura del repositorio
 ```
@@ -84,4 +87,4 @@ Hay dos copias servidas por contenedores nginx de solo lectura en `dashboard-sta
 Ver [`rules/README.md`](rules/README.md): 001 sin assets oficiales · 002 música de IA declarada y anotada · 003 versión coherente con el CHANGELOG.
 
 ## Estado y pendientes
-Jugable y en mejora continua (v0.6.0). Pendiente: probar a mano en un navegador real (rendimiento con muchos objetos, atascos entre obstáculos), afinar el equilibrio (la subida de nivel es muy rápida), subir el repo a GitHub (privado) y añadir un monitor de disponibilidad en el homelab. Ver `memory.md`.
+Jugable y en mejora continua (v0.8.0). Pendiente: probar a mano en un navegador real (rendimiento con muchos objetos, atascos entre obstáculos), afinar el equilibrio (la subida de nivel es muy rápida), subir el repo a GitHub (privado) y añadir un monitor de disponibilidad en el homelab. Ver `memory.md`.

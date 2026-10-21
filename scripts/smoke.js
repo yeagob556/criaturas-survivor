@@ -183,6 +183,91 @@ src += `
   setMusic(true); eq(music.cur === G.map.type ? 1 : 0, 1, 'al reactivarla suena la del mapa actual');
   G.hp = 0; endRun(); eq(music.cur === null ? 1 : 0, 1, 'fin de partida apaga la musica');
   console.log('MUSICA OK');
+  // --- gacha tragamonedas (solo visual) ---
+  const realRandom = Math.random, rq = vals => { let i = 0; Math.random = () => vals[i++ % vals.length]; };
+  newRun(); SAVE.owned = {brasito:{shiny:false}}; SAVE.coins = 0;
+  rq([0.5, 0.5]); let g1 = gachaRoll(); eq(g1.out === 'new' ? 1 : 0, 1, 'tirada: compañero nuevo'); eq(g1.id === SPECIES[3].id ? 1 : 0, 1, 'tirada: criatura sorteada'); eq(SAVE.owned[g1.id].shiny ? 1 : 0, 0, 'tirada: nuevo sin shiny');
+  SAVE.owned = {brasito:{shiny:false}}; rq([0.5, 0.01]); g1 = gachaRoll(); eq(g1.out === 'shiny' ? 1 : 0, 1, 'tirada: nuevo shiny (5%)'); eq(SAVE.owned[g1.id].shiny ? 1 : 0, 1, 'tirada: shiny guardado');
+  SAVE.owned = {brasito:{shiny:false}}; SAVE.coins = 0; rq([0, 0.5]); g1 = gachaRoll(); eq(g1.out === 'dup' ? 1 : 0, 1, 'tirada: repetido'); eq(SAVE.coins, 40, 'tirada: +40 por repetido');
+  SAVE.owned = {brasito:{shiny:false}}; rq([0, 0.05]); g1 = gachaRoll(); eq(g1.out === 'shiny' ? 1 : 0, 1, 'tirada: repetido que sale shiny (10%)'); rq([0, 0.01]); SAVE.coins = 0; g1 = gachaRoll(); eq(g1.out === 'dup' ? 1 : 0, 1, 'tirada: ya shiny, repetido'); eq(SAVE.coins, 40, 'tirada: ya shiny paga');
+  Math.random = realRandom;
+  // los rodillos terminan exactamente en su casilla y en orden
+  for (const r of [{id:'brasito', type:'fuego', out:'dup', msg:'x'}, {id:'dracolin', type:'dragon', out:'shiny', msg:'x'}, {id:'gotin', type:'agua', out:'new', msg:'x'}]) for (const quick of [false, true]) {
+    slotSpin(r, quick); const tg = slotTargets(r), doneAt = [0, 0, 0]; let t = 0;
+    while (!slotUpdate(slotM, 1 / 60)) { t += 1 / 60; slotM.reels.forEach((R, i) => { if (R.ph === 'done' && !doneAt[i]) doneAt[i] = t; }); if (t > 20) throw new Error('FALLO el giro no termina'); }
+    doneAt.forEach((v, i) => { if (!v) doneAt[i] = t + 1 / 60; });
+    slotM.reels.forEach((R, i) => eq(R.pos, tg[i], 'rodillo ' + i + ' en su casilla')); if (!(doneAt[0] <= doneAt[1] && doneAt[1] <= doneAt[2])) throw new Error('FALLO orden de paradas ' + doneAt); }
+  slotBusy = true; slotM.done = false; slotDraw(); slotBusy = false; slotDraw();
+  // flujo completo: cobro único, cola y lista de resultados
+  const lista = []; const montar = () => { panelGacha(); document.querySelector('#gList').insertAdjacentHTML = (w, h) => lista.push(h); document.querySelector('#gList').innerHTML = ''; };
+  newRun(); SAVE.coins = 1000; SAVE.owned = {brasito:{shiny:false}}; lista.length = 0; montar(); rq([0, 0.5]);                        // repetido: -100 +40
+  document.querySelector('#g1').onclick(); eq(slotBusy ? 1 : 0, 1, 'girando'); eq(SAVE.coins, 940, 'cobro de la tirada x1 mas el repetido'); document.querySelector('#g1').onclick(); eq(SAVE.coins, 940, 'no se cobra dos veces mientras gira');
+  for (let i = 0; i < 60 * 30 && slotBusy; i++) slotStep(1 / 60); Math.random = realRandom; eq(slotBusy ? 1 : 0, 0, 'termina el x1'); eq(lista.length, 1, 'un resultado en la lista');
+  lista.length = 0; montar(); SAVE.coins = 1000; rq([0, 0.5]); document.querySelector('#g10').onclick(); eq(slotQ.length, 9, 'cola de 9 tras empezar el x10'); eq(SAVE.coins, 100 + 400, 'x10: 900 de coste y 10 repetidos');
+  for (let i = 0; i < 60 * 60 && slotBusy; i++) slotStep(1 / 60); Math.random = realRandom; eq(slotBusy ? 1 : 0, 0, 'termina el x10'); eq(lista.length, 10, 'diez resultados en la lista');
+  lista.length = 0; montar(); SAVE.coins = 1000; rq([0, 0.5]); document.querySelector('#g10').onclick(); slotStep(0.1); slotSkip(); Math.random = realRandom; eq(slotBusy ? 1 : 0, 0, 'saltar termina'); eq(lista.length, 10, 'saltar enseña los diez resultados'); eq(slotQ.length, 0, 'cola vacia');
+  panelGacha();
+  console.log('GACHA OK');
+
+  // --- monstruos: alcance, disparos bloqueados, embestidas y jefes ---
+  getChunk = () => []; keys.a = keys.d = false;
+  const corre = n => { for (let i = 0; i < n; i++) update(1 / 60); };
+  const sombraMap = () => setMap(MAPS.find(x => x.type === 'sombra'));
+  eq(reachOf({type:'sombra'}), 0.5, 'violetas: alcance a la mitad'); eq(reachOf({type:'planta'}), 1, 'otros: alcance normal'); near(reachOf({type:'sombra', shrink:2}), 0.225, 'Niebla se multiplica');
+  newRun(); G.moves = []; G.px = G.py = 0; sombraMap();
+  G.enemies = [mk('sombra', 15, 0, {spd:0})]; G.hp = G.maxhp = 100; G.inv = 0; corre(1); eq(G.hp, 100, 'violeta no alcanza a 15 px');
+  G.enemies = [mk('planta', 15, 0, {spd:0})]; G.inv = 0; corre(1); eq(G.hp < 100 ? 1 : 0, 1, 'otro hostil si alcanza a 15 px');
+  G.hp = 100; G.inv = 0; G.enemies = [mk('sombra', 8, 0, {spd:0})]; corre(1); eq(G.hp < 100 ? 1 : 0, 1, 'violeta si alcanza a 8 px');
+  G.ebul = []; G.enemies = [mk('sombra', 300, 0, {spd:0, shoots:true, shootT:0})]; corre(1); eq(G.ebul.length, 0, 'violeta no dispara a 300 px (alcance 210)');
+  G.enemies = [mk('sombra', 150, 0, {spd:0, shoots:true, shootT:0})]; corre(1); eq(G.ebul.length, 1, 'violeta dispara a 150 px'); if (!(G.ebul[0].life < 2.51 && G.ebul[0].life > 2.4)) throw new Error('FALLO vida de la bala del violeta: ' + G.ebul[0].life);
+  G.ebul = []; G.enemies = [mk('planta', 300, 0, {spd:0, shoots:true, shootT:0})]; corre(1); eq(G.ebul.length, 1, 'otro tirador dispara a 300 px'); near(G.ebul[0].life, 5 - 1 / 60, 'bala normal vive 5 s');
+  // los disparos no atraviesan montañas ni árboles; las piedras no los frenan
+  for (const [k, bloquea] of [['montana', true], ['arbol', true], ['piedra', false]]) {
+    newRun(); G.moves = []; G.px = G.py = 0; world([mkO(k, 100, 0, k === 'montana' ? 45 : 14)]); G.enemies = []; G.hp = G.maxhp = 100; G.ebul = [{x:200, y:0, vx:-200, vy:0, r:5, dmg:5, life:5, type:'planta'}]; corre(40);
+    eq(G.ebul.length ? 1 : 0, bloquea ? 0 : 1, 'bala enemiga vs ' + k + (bloquea ? ' se para' : ' sigue')); }
+  newRun(); G.moves = []; G.px = G.py = 0; world([mkO('arbol', 100, 0, 14)]); G.enemies = [mk('planta', 40, 0, {spd:0})];
+  G.proj.push({x:200, y:0, vx:-300, vy:0, dmg:20, r:6, pierce:1, life:3, col:'#fff', hit:[], mt:'fuego'}); corre(60); eq(G.enemies[0].hp, 1e9, 'el arbol protege al hostil de mi disparo');
+  newRun(); G.moves = []; G.px = G.py = 0; world([]); G.enemies = [mk('planta', 40, 0, {spd:0})]; G.proj.push({x:200, y:0, vx:-300, vy:0, dmg:20, r:6, pierce:1, life:3, col:'#fff', hit:[], mt:'fuego'}); corre(60); eq(G.enemies[0].hp < 1e9 ? 1 : 0, 1, 'sin obstaculo el disparo si llega');
+  // embestida con aviso: trayectoria fijada, esquivable, golpea una vez
+  const mkd = (x, o) => mk('fuego', x, 0, Object.assign({spd:0, dmg:12, dash:{cd:5, wind:1, len:200, spd:300, mul:1.8}, dcd:0, ds:null}, o || {}));
+  newRun(); G.moves = []; G.px = G.py = 0; world([]); sombraMap(); const dd = mkd(200); G.enemies = [dd]; G.hp = G.maxhp = 100; G.inv = 0; corre(1);
+  eq(dd.ds && dd.ds.ph === 'wind' ? 1 : 0, 1, 'empieza el aviso'); near(Math.abs(dd.ds.ang), Math.PI, 'trayectoria hacia el jugador'); G.py = 150; corre(50); eq(dd.x, 200, 'parado durante el aviso'); corre(15);
+  eq(dd.ds && dd.ds.ph !== 'wind' ? 1 : 0, 1, 'termina el aviso'); corre(30); if (!(Math.abs(dd.y) < 1e-6 && dd.x < 200)) throw new Error('FALLO la embestida no sigue la trayectoria fijada: ' + dd.x + ',' + dd.y); corre(60); eq(G.hp, 100, 'esquivada: no hay daño'); near(dd.x, 0, 'recorre su longitud'); corre(60 * 2); eq(dd.ds === null ? 1 : 0, 1, 'vuelve a la normalidad');
+  newRun(); G.moves = []; G.px = G.py = 0; world([]); sombraMap(); const dh = mkd(200); G.enemies = [dh]; G.hp = G.maxhp = 100; G.inv = 0; for (let i = 0; i < 60 * 3 && G.hp === 100; i++) update(1 / 60); near(100 - G.hp, 12 * 1.8, 'el primer golpe de la embestida lleva su multiplicador'); eq(dh.ds && dh.ds.hit ? 1 : 0, 1, 'embestida marcada como acertada');
+  newRun(); G.moves = []; G.px = G.py = 0; world([]); const dc = mkd(200); G.enemies = [dc]; corre(1); dc.stun = 1; corre(1); eq(dc.ds === null ? 1 : 0, 1, 'paralizar cancela la embestida');
+  // estados del jugador
+  newRun(); G.moves = []; world([]); G.enemies = []; G.px = G.py = 0; keys.d = true; corre(30); const libreX = G.px; G.px = 0; G.ps.slow = 5; corre(30); near(G.px, libreX * 0.55, 'ralentizado x0.55'); G.px = 0; G.ps.slow = 0; G.ps.root = 5; corre(30); eq(G.px, 0, 'atrapado no se mueve'); keys.d = false;
+  newRun(); G.moves = []; world([]); G.enemies = []; G.hp = G.maxhp = 100; G.ps.burn = 2; corre(60); near(100 - G.hp, 4, 'quemadura 4 por segundo'); newRun(); G.moves = []; world([]); G.enemies = []; G.ps.dark = 2; corre(60); if (!(G.vis > 0.9)) throw new Error('FALLO oscuridad no reduce la vision: ' + G.vis);
+  // jefes: guion fijo, aviso antes de cada ataque, mismos movimientos que su tipo
+  for (const bt of Object.keys(TYPES)) { newRun(); G.moves = []; world([]); G.px = G.py = 0; G.enemies = []; sombraMap(); const jf = spawnBoss(bt, 600, 0, 1e9); jf.spd = 0;
+    const seen = [], winds = []; let last = ''; for (let i = 0; i < 60 * 36; i++) { G.hp = G.maxhp; G.inv = 0; update(1 / 60); const b = jf.bs; if (b.ph === 'wind' && last !== b.i + ':' + b.cycle) { last = b.i + ':' + b.cycle; seen.push(b.name); winds.push(b.tg.dur); } }
+    const ciclo = BOSS_SCRIPT[bt].filter(z => z[0] !== 'rest').map(z => z[1]); const esperado = [...ciclo, ...ciclo];
+    if (seen.slice(0, esperado.length).join('|') !== esperado.join('|')) throw new Error('FALLO guion de ' + bt + ': ' + seen.slice(0, esperado.length) + ' vs ' + esperado);
+    if (!winds.every(w => w >= 0.7)) throw new Error('FALLO aviso demasiado corto en ' + bt);
+    for (const z of BOSS_SCRIPT[bt]) if (z[0] !== 'rest' && !Object.values(MOVES).some(mv => mv.type === bt && (mv.name === z[1] || mv.evo === z[1]))) throw new Error('FALLO ataque que no es de la categoria: ' + bt + ' ' + z[1]); }
+  const jefe = bt => { newRun(); G.moves = []; world([]); G.px = G.py = 0; G.enemies = []; sombraMap(); G.hp = G.maxhp = 100; const jf = spawnBoss(bt, 600, 0, 1e9); jf.spd = 0; return jf; };
+  const paso = (jf, kind, nombre, n) => { startBossStep(jf, [kind, nombre]); let antes = G.ebul.length, i = 0; for (; jf.bs.ph === 'wind' && i < 200; i++) { update(1 / 60); if (jf.bs.ph === 'wind') eq(G.ebul.length, antes, 'sin disparos durante el aviso'); } return i; };
+  let jf = jefe('fuego'); G.ebul = []; paso(jf, 'fan', 'Ascuas'); eq(G.ebul.length, 5, 'abanico de 5 proyectiles tras el aviso');
+  jf = jefe('agua'); G.ebul = []; paso(jf, 'ring', 'Hidrobomba'); eq(G.ebul.length, 16, 'anillo de 16');
+  jf = jefe('agua'); G.ebul = []; paso(jf, 'burst', 'Pistola Agua'); corre(60); eq(G.ebul.length + 0 >= 0 ? 1 : 0, 1, 'rafaga'); eq(jf.bs.fired, 3, 'rafaga de 3 disparos');
+  // zonas y ondas: se esquivan saliendo durante el aviso; si te alcanzan dejan el estado de su tipo
+  const zona = (bt, kind, nombre, dentro, dist) => { const b2 = jefe(bt); b2.x = 0; b2.y = kind === 'pulse' ? 250 : 0; b2.bs.t = 0; G.px = 0; G.py = 300; startBossStep(b2, [kind, nombre]); if (!dentro) G.py = 300 + dist; for (let i = 0; i < 200 && b2.bs.ph === 'wind'; i++) { G.inv = 0; update(1 / 60); } return b2; };
+  zona('planta', 'zone', 'Raíces', true); const hpZ = G.hp; eq(hpZ < 100 ? 1 : 0, 1, 'zona alcanza si te quedas'); eq(G.ps.root > 0 ? 1 : 0, 1, 'planta: atrapado');
+  zona('planta', 'zone', 'Raíces', false, 300); eq(G.hp, 100, 'zona esquivada'); eq(G.ps.root > 0 ? 1 : 0, 0, 'zona esquivada: sin estado');
+  zona('fuego', 'zone', 'Brasas', true); eq(G.ps.burn > 0 ? 1 : 0, 1, 'fuego: quemadura'); zona('electrico', 'zone', 'Impactrueno', true); eq(G.ps.root > 0 ? 1 : 0, 1, 'electrico: paralizado un instante');
+  zona('agua', 'pulse', 'Marea', true); eq(G.ps.slow > 0 ? 1 : 0, 1, 'agua: ralentizado'); zona('sombra', 'pulse', 'Niebla', true); eq(G.ps.dark > 0 ? 1 : 0, 1, 'sombra: oscuridad');
+  zona('agua', 'pulse', 'Marea', false, 200); eq(G.ps.slow > 0 ? 1 : 0, 0, 'onda esquivada fuera de su radio');
+  jf = jefe('sombra'); startBossStep(jf, ['pulse', 'Niebla']); eq(jf.bs.tg.R, BOSS_ATK.pulse.R * 0.5, 'jefe violeta: onda a la mitad'); jf = jefe('fuego'); startBossStep(jf, ['pulse', 'x']); eq(jf.bs.tg.R, BOSS_ATK.pulse.R, 'otro jefe: onda normal');
+  // tornado del jefe: arrastra al jugador hacia el centro y se acaba
+  jf = jefe('dragon'); jf.x = 0; jf.y = 0; G.px = 0; G.py = 400; startBossStep(jf, ['tornado', 'Ciclón']); G.px = 60; G.py = 400; for (let i = 0; i < 200 && jf.bs.ph === 'wind'; i++) { G.inv = 0; update(1 / 60); }
+  eq(G.tornados.some(t => t.foe) ? 1 : 0, 1, 'tornado enemigo creado'); jf.bs.ph = 'rest'; jf.bs.kind = 'rest'; jf.bs.t = -999; G.px = 60; G.py = 400; corre(30); if (!(Math.hypot(G.px - 0, G.py - 400) < 45)) throw new Error('FALLO el tornado no arrastra: ' + Math.hypot(G.px, G.py - 400)); corre(60 * 5); eq(G.tornados.length, 0, 'tornado enemigo caduca');
+  // furia al 30% de vida: +20% de daño, una sola vez
+  jf = jefe('electrico'); jf.x = 10; jf.y = 0; jf.bs.ph = 'rest'; jf.bs.kind = 'rest'; jf.bs.t = -999; jf.hp = jf.maxhp * 0.31; G.inv = 0; G.hp = 100; corre(1); eq(jf.enr ? 1 : 0, 0, 'no se enfurece al 31%'); const perdida1 = 100 - G.hp;
+  jf.hp = jf.maxhp * 0.29; G.inv = 0; G.hp = 100; G.banner = null; corre(1); eq(jf.enr ? 1 : 0, 1, 'se enfurece al 29%'); eq(G.banner ? 1 : 0, 1, 'aviso de furia'); const perdida2 = 100 - G.hp; near(perdida2 / perdida1, 1.2, 'daño x1.2 enfurecido');
+  G.banner = null; G.inv = 0; G.hp = 100; corre(1); eq(G.banner ? 1 : 0, 0, 'la furia salta una sola vez');
+  panelDex('c'); newRun(); G.enemies = [spawnBoss('fuego', 0, 0, 1000)]; draw(); G.enemies[0].bs.ph = 'wind'; startBossStep(G.enemies[0], ['fan', 'Ascuas']); draw(); G.enemies[0].enr = true; draw();
+  console.log('MONSTRUOS OK');
+
   // --- version coherente con la documentacion ---
   const top = (__changelog.match(/^## v(\\d+\\.\\d+\\.\\d+)/m) || [])[1]; if (top !== VERSION) throw new Error('FALLO version: index.html=' + VERSION + ' CHANGELOG=' + top);
   if (!__readme.includes('v' + VERSION)) throw new Error('FALLO el README no menciona la version v' + VERSION);

@@ -2,6 +2,20 @@
 
 Versionado: `0.x.0` por cada mejora (la 0.1.0 es la primera versión); `0.x.y` para correcciones. La versión que muestra el juego (`VERSION` en `index.html`) debe coincidir con el primer encabezado de este fichero.
 
+## v0.8.0 — 2026-10-21 · Mejora 7: habilidades de los monstruos y jefes con guion
+- **Violetas (Sombra) con la mitad de alcance:** contacto, disparos y vida de las balas ×0.5 (`REACH`, `reachOf()`); se multiplica con el efecto de Niebla (×0.45).
+- **Los disparos ya no atraviesan montañas ni árboles,** ni los tuyos ni los de los hostiles. Las piedras no los frenan (siguen rompiéndose).
+- **Embestidas con aviso en el suelo:** Chispamurci, Magmaroca y Dracoaleta embisten. El recorrido se marca en el suelo (rectángulo con chevrons que se va llenando) y queda fijado al empezar el aviso, así que se esquiva; tiembla mientras avisa, pega una sola vez con su multiplicador y se queda 0,6 s parado. Paralizarlo o inmovilizarlo la cancela (`enemyDash`).
+- **Jefes con guion fijo de 5 pasos** por tipo, con los movimientos genéricos de su categoría y siempre en el mismo orden (`BOSS_SCRIPT`): abanico, ráfaga, anillo, onda, zona marcada, embestida y tornado, con su aviso en el suelo (`BOSS_ATK`). Sobre el jefe se ve el ataque actual y el siguiente. Las ondas y zonas dejan en ti el estado de su tipo (quemadura, ralentizado, atrapado, oscuridad; HUD con chips) y el tornado del dragón te arrastra (se puede escapar).
+- **Furia al 30% de vida:** +20% de daño en todo (contacto, proyectiles, ondas, zonas y embestidas), con aviso, aro rojo y etiqueta «¡ENFURECIDO!».
+- Criaturario y Guía actualizados. `scripts/smoke.js`: alcance de los violetas, bloqueo por tipo de obstáculo, embestida (trayectoria fijada, esquivable, un solo golpe, cancelada por paralizar), estados del jugador, guion de los 6 jefes en orden con aviso, esquiva de zonas y ondas, tornado, y furia ×1.2 una sola vez.
+
+## v0.7.0 — 2026-10-21 · Mejora 6: Gacha como tragamonedas retro
+- **Máquina tragamonedas** en el Gacha, dibujada por código (marquesina con bombillas, tres rodillos con ventana, línea de pago, palanca, pantallita de monedas) y sonidos de «tic» por osciladores. Los rodillos paran uno a uno.
+- **Sólo visual:** la tirada se decide y se guarda antes de animar, con las mismas probabilidades de siempre (5% shiny al conseguir uno nuevo, 10% de shiny al repetir, +40 monedas por repetido). Rodillo 1 = criatura, rodillo 2 = su tipo, rodillo 3 = desenlace (NEW, ✨ shiny o +40). No hay premio por «tres iguales».
+- ×10: diez giros rápidos seguidos con el resumen al final; botón «Saltar animación». Si se cierra el panel a mitad, lo ya tirado queda guardado.
+- `gachaRoll()` devuelve un objeto `{id, type, out, msg}`. `scripts/smoke.js` comprueba las probabilidades con `Math.random` simulado, que cada rodillo termina exactamente en su casilla y en orden, el salto de animación, el cobro único y la cola del ×10.
+
 ## v0.6.0 — 2026-10-21 · Mejora 5: música de fondo por mapa
 - **Música de fondo por mapa:** una pista chillout por tipo (`music/<tipo>.mp3`, opcional: sin fichero, ese mapa va sin música). Fundido cruzado de 3 s al cambiar de mapa, cada pista recuerda por dónde iba, entrada/salida suaves de 2 s en el punto de bucle, volumen bajado al pausar, botón «Música» en el menú y en pausa (guardado). `<audio>` + WebAudio (el volumen de `<audio>` no se controla en iOS); el CSP del servidor sólo necesita `media-src 'self'`.
 - `scripts/generar_musica.sh`: genera las 6 pistas con ACE-Step en el ComfyUI del PC (vía `creacion-local`), misma tonalidad y tempos parecidos; las anota en el catálogo de `musica-ia-lofi` (regla 001). Las pistas no se suben a Git (`.gitignore`); `scripts/sync-dashboard.sh` las copia a la demo.

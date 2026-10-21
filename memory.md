@@ -14,6 +14,18 @@ Regla: al **finalizar cada tarea** se añade una entrada arriba (la más recient
 
 ## Entradas
 
+### 2026-10-21 — Mejora 7: habilidades de los monstruos y jefes con guion (v0.8.0)
+- **Qué cambió:** violetas con la mitad de alcance; disparos bloqueados por montañas y árboles; embestidas con aviso en el suelo (Chispamurci, Magmaroca, Dracoaleta); jefes con guion fijo de 5 ataques por tipo con avisos, estados en el jugador (burn/slow/root/dark) y furia al 30% (+20% daño).
+- **Ficheros:** `index.html` (tablas `REACH`, `PS_FX`, `BOSS_ATK`, `BOSS_SCRIPT` en la sección 1; `spawnBoss`, `enemyDash`, `bossStep`, `bossAct`, `hitPlayerFx` en lógica; `drawTelegraph`, `drawPath` en dibujo), `scripts/smoke.js`, `README.md`, `CHANGELOG.md`
+- **Decisiones:** «los violetas» = hostiles de tipo Sombra; el reparto del guion usa los nombres de los movimientos del propio tipo; las ondas/zonas de los jefes aplican el estado del tipo (espejo de los movimientos de control del jugador); el contacto normal de un jefe sigue existiendo además de sus ataques; las piedras no frenan los disparos. Interpretaciones por confirmar con el usuario.
+- **Pendiente / siguiente paso:** verlo en navegador real (legibilidad de los avisos, dificultad de los jefes, rendimiento); sincronizar y commitear cuando lo ordene (la v0.7.0 del tragamonedas está guardada aparte por si se quiere commitear por separado).
+
+### 2026-10-21 — Mejora 6: Gacha como tragamonedas retro (v0.7.0)
+- **Qué cambió:** el Gacha pasa a una máquina dibujada por código (3 rodillos, palanca, bombillas) que sólo enseña una tirada ya decidida: criatura · tipo · desenlace (NEW/✨/+40). ×10 con cola y «Saltar animación». `gachaRoll()` devuelve objeto.
+- **Ficheros:** `index.html` (sección «Gacha: tragamonedas retro»), `scripts/smoke.js`, `README.md`, `CHANGELOG.md`
+- **Decisiones:** sólo visual por petición del usuario (mismas probabilidades); los rodillos no muestran «tres iguales» para no sugerir premio; duración de frenado fija para que los rodillos paren siempre en orden (lo cazó la prueba).
+- **Pendiente / siguiente paso:** verlo en un navegador real (aspecto, ritmo del ×10); sincronizar y commitear cuando el usuario lo ordene.
+
 ### 2026-10-21 — Versión visible y documentación completa (v0.6.0)
 - **Qué cambió:** `VERSION`/`VERSION_DATE` visibles en el menú, la Guía y la esquina del juego; CHANGELOG con versión por encabezado; README reescrito; CLAUDE.md actualizado (flujo, gotchas nuevos); `AGENTS.md` apuntando a CLAUDE.md; reglas 002 (música de IA) y 003 (versión coherente); `smoke.js` comprueba que la versión coincide con CHANGELOG y README.
 - **Ficheros:** `index.html`, `README.md`, `CLAUDE.md`, `AGENTS.md`, `CHANGELOG.md`, `rules/002-musica-ia-declarada.md`, `rules/003-version-coherente.md`, `rules/README.md`, `scripts/smoke.js`
