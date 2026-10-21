@@ -106,7 +106,7 @@ const fmtT = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(Mat
 
 /* ---------- 1. DATOS ---------- */
 // Versión visible en el menú, la Guía y la esquina del juego. Debe coincidir con el último encabezado de CHANGELOG.md (lo comprueba scripts/smoke.js).
-const VERSION = '0.8.0', VERSION_DATE = '2026-10-21';
+const VERSION = '0.8.1', VERSION_DATE = '2026-10-21';
 const TYPES = {
   fuego:{n:'Fuego',c:'#ff7a3d',h:18}, agua:{n:'Agua',c:'#4aa8ff',h:205}, planta:{n:'Planta',c:'#5fcf6a',h:120},
   electrico:{n:'Eléctrico',c:'#ffd93b',h:50}, sombra:{n:'Sombra',c:'#8a5cc2',h:270}, dragon:{n:'Dragón',c:'#4f6bff',h:230}
@@ -1153,7 +1153,7 @@ function drawHUD(){
 /* ---------- 8. MENÚS ---------- */
 function show(id){ $(id).classList.add('on'); }
 function hide(id){ $(id).classList.remove('on'); }
-function openPanel(title, html){ $('#pTitle').textContent = title; $('#pBody').innerHTML = html; show('#ovPanel'); }
+function openPanel(title, html, arriba){ $('#pTitle').textContent = title; $('#pBody').innerHTML = html; $('#ovPanel').style.alignItems = arriba ? 'flex-start' : ''; show('#ovPanel'); }       // arriba: pegado al borde superior (no se desplaza al crecer)
 function drawIn(canvas, sp, shiny){ const k = canvas.getContext('2d'); k.imageSmoothingEnabled=false; k.clearRect(0,0,30,30); k.drawImage(spriteOf(sp,shiny),0,0); }
 
 function refreshMenu(){
@@ -1195,7 +1195,7 @@ function gachaRoll(){
   if(!o.shiny && Math.random()<0.10){ o.shiny = true; return {...base, out:'shiny', msg:`¡<b>${sp.name}</b> shiny! ✨`}; }
   SAVE.coins += 40; return {...base, out:'dup', msg:`${sp.name} repetido → +40 monedas`};
 }
-const SLOT_OUT = ['new','shiny','dup'], SLOT_CELL = 64;
+const SLOT_OUT = ['new','shiny','dup'], SLOT_CELL = 48, SLOT_W = 280, SLOT_H = 150;     // lienzo apaisado y compacto (casilla de cada rodillo = 48 px)
 const slotReels = () => [SPECIES.map(x => ({k:'sp', id:x.id})), Object.keys(TYPES).map(t => ({k:'ty', id:t})), SLOT_OUT.map(o => ({k:'out', id:o}))];
 const slotTargets = r => [SPECIES.findIndex(x => x.id===r.id), Object.keys(TYPES).indexOf(r.type), SLOT_OUT.indexOf(r.out)];
 let slotM = null, slotQ = [], slotBusy = false, slotCoins = 0, slotLast = 0;
@@ -1251,7 +1251,7 @@ function slotPlay(results, quick){
   requestAnimationFrame(loop);
 }
 function slotSymbol(k, sym, x, y){                  // dibuja un símbolo centrado en (x,y)
-  k.save(); k.translate(x, y);
+  k.save(); k.translate(x, y); k.scale(0.74, 0.74);
   if(sym.k==='sp'){ const sp = SPECIES.find(z => z.id===sym.id), spr = spriteOf(sp, false); k.imageSmoothingEnabled = false; k.drawImage(spr, -26, -26, 52, 52); }
   else if(sym.k==='ty'){ const t = TYPES[sym.id]; k.fillStyle = '#0006'; k.beginPath(); k.arc(1,2,21,0,7); k.fill(); k.fillStyle = t.c; k.beginPath(); k.arc(0,0,21,0,7); k.fill();
     k.fillStyle = '#fff5'; k.beginPath(); k.arc(-7,-7,7,0,7); k.fill(); k.fillStyle = '#111'; k.font = 'bold 20px ui-monospace,monospace'; k.textAlign = 'center'; k.textBaseline = 'middle'; k.fillText(t.n[0], 0, 2); }
@@ -1262,33 +1262,32 @@ function slotSymbol(k, sym, x, y){                  // dibuja un símbolo centra
 }
 function slotDraw(){
   const cvs = $('#slot'); if(!cvs) return; const k = cvs.getContext('2d'), m = slotM, t = performance.now()/1000;
-  k.setTransform(1,0,0,1,0,0); k.clearRect(0,0,320,230); k.imageSmoothingEnabled = false;
+  k.setTransform(1,0,0,1,0,0); k.clearRect(0,0,SLOT_W,SLOT_H); k.imageSmoothingEnabled = false;
   const live = slotBusy, special = m && m.r && m.r.out !== 'dup';
-  k.fillStyle = '#7a1620'; k.fillRect(6,18,276,206); k.fillStyle = '#a3202c'; k.fillRect(10,22,268,198); k.strokeStyle = '#ffd93b'; k.lineWidth = 4; k.strokeRect(8,20,272,202);
+  k.fillStyle = '#7a1620'; k.fillRect(2,14,254,134); k.fillStyle = '#a3202c'; k.fillRect(5,17,248,128); k.strokeStyle = '#ffd93b'; k.lineWidth = 3; k.strokeRect(3.5,15.5,251,131);
   for(let i=0;i<10;i++){ const on = live ? (i + Math.floor(t*8)) % 2 === 0 : special ? (i + Math.floor(t*5)) % 2 === 0 : i % 3 === 0;
-    k.fillStyle = on ? '#fff3a0' : '#7a5a10'; k.beginPath(); k.arc(26 + i*27, 12, 5, 0, 7); k.fill(); }
-  k.fillStyle = '#ffd93b'; k.font = 'bold 15px ui-monospace,monospace'; k.textAlign = 'center'; k.textBaseline = 'middle'; k.fillText('★ CRIATURAS ★', 144, 38);
+    k.fillStyle = on ? '#fff3a0' : '#7a5a10'; k.beginPath(); k.arc(20 + i*24, 8, 4, 0, 7); k.fill(); }
+  k.fillStyle = '#ffd93b'; k.font = 'bold 11px ui-monospace,monospace'; k.textAlign = 'center'; k.textBaseline = 'middle'; k.fillText('★ CRIATURAS ★', 129, 27);
   const syms = slotReels();
-  for(let i=0;i<3;i++){ const wx = 22 + i*84, wy = 52, ww = 76, wh = 96;
-    k.fillStyle = '#1a1226'; k.fillRect(wx-4,wy-4,ww+8,wh+8); k.fillStyle = '#f4ecd0'; k.fillRect(wx,wy,ww,wh);
+  for(let i=0;i<3;i++){ const wx = 24 + i*74, wy = 38, ww = 64, wh = 58;
+    k.fillStyle = '#1a1226'; k.fillRect(wx-3,wy-3,ww+6,wh+6); k.fillStyle = '#f4ecd0'; k.fillRect(wx,wy,ww,wh);
     k.save(); k.beginPath(); k.rect(wx,wy,ww,wh); k.clip();
     const pos = m ? m.reels[i].pos : 0, len = syms[i].length;
     for(let d=-2; d<=2; d++){ const idx = Math.floor(pos) + d, frac = pos - Math.floor(pos), cy = wy + wh/2 + (d - frac)*SLOT_CELL;
       slotSymbol(k, syms[i][((idx % len) + len) % len], wx + ww/2, cy); }
-    k.fillStyle = '#0005'; k.fillRect(wx,wy,ww,16); k.fillRect(wx,wy+wh-16,ww,16); k.restore(); }
-  k.fillStyle = '#ff2a3a'; k.fillRect(14,98,264,2); k.beginPath(); k.moveTo(10,92); k.lineTo(10,106); k.lineTo(20,99); k.fill(); k.beginPath(); k.moveTo(282,92); k.lineTo(282,106); k.lineTo(272,99); k.fill();
-  k.fillStyle = '#0d2a14'; k.fillRect(70,170,152,30); k.fillStyle = '#7dff9a'; k.font = 'bold 18px ui-monospace,monospace'; k.fillText('● ' + slotCoins, 146, 186);
-  const lever = m && live ? clamp(1 - m.t/0.35, 0, 1) : 0, tipY = 74 + 56*lever;      // palanca: baja al empezar el giro
-  k.fillStyle = '#555'; k.fillRect(288,146,16,10); k.strokeStyle = '#d4a017'; k.lineWidth = 4; k.beginPath(); k.moveTo(296,150); k.lineTo(296,tipY); k.stroke();
-  k.fillStyle = '#ff3b4a'; k.beginPath(); k.arc(296,tipY,9,0,7); k.fill(); k.fillStyle = '#fff6'; k.beginPath(); k.arc(293,tipY-3,3,0,7); k.fill();
+    k.fillStyle = '#0005'; k.fillRect(wx,wy,ww,9); k.fillRect(wx,wy+wh-9,ww,9); k.restore(); }
+  k.fillStyle = '#ff2a3a'; k.fillRect(8,66,240,2); k.beginPath(); k.moveTo(5,61); k.lineTo(5,73); k.lineTo(13,67); k.fill(); k.beginPath(); k.moveTo(253,61); k.lineTo(253,73); k.lineTo(245,67); k.fill();
+  k.fillStyle = '#0d2a14'; k.fillRect(70,108,116,26); k.fillStyle = '#7dff9a'; k.font = 'bold 15px ui-monospace,monospace'; k.fillText('● ' + slotCoins, 128, 121);
+  const lever = m && live ? clamp(1 - m.t/0.35, 0, 1) : 0, tipY = 48 + 42*lever;      // palanca: baja al empezar el giro
+  k.fillStyle = '#555'; k.fillRect(262,92,16,9); k.strokeStyle = '#d4a017'; k.lineWidth = 4; k.beginPath(); k.moveTo(270,96); k.lineTo(270,tipY); k.stroke();
+  k.fillStyle = '#ff3b4a'; k.beginPath(); k.arc(270,tipY,8,0,7); k.fill(); k.fillStyle = '#fff6'; k.beginPath(); k.arc(267,tipY-3,2.5,0,7); k.fill();
 }
 function panelGacha(){
   slotM = null; slotQ = []; slotBusy = false; slotCoins = SAVE.coins;
-  openPanel('Gacha', `<p class="sub">Monedas: <span class="coin" id="gCoins">${SAVE.coins}</span> · Compañeros nuevos y versiones shiny</p>
-    <canvas id="slot" width="320" height="230" style="width:100%;max-width:320px;image-rendering:pixelated;display:block;margin:0 auto"></canvas>
-    <p class="hint" style="margin:6px 0">Criatura · Tipo · Desenlace (NEW, ✨ shiny o +40 monedas)</p>
-    <div class="menu"><button id="g1" ${SAVE.coins<100?'disabled':''}>Tirar ×1 · ● 100</button><button id="g10" ${SAVE.coins<900?'disabled':''}>Tirar ×10 · ● 900</button><button id="gSkip" style="display:none">Saltar animación</button></div>
-    <div id="gList" style="margin-top:14px"></div>`);
+  openPanel('Gacha', `<canvas id="slot" width="${SLOT_W}" height="${SLOT_H}" style="width:100%;max-width:${SLOT_W}px;image-rendering:pixelated;display:block;margin:0 auto"></canvas>
+    <p class="sub" style="margin:6px 0 0;font-size:12px">Monedas: <span class="coin" id="gCoins">${SAVE.coins}</span> · Rodillos: criatura · tipo · desenlace (NEW, ✨ o +40)</p>
+    <div class="menu" style="margin-top:8px"><button id="g1" ${SAVE.coins<100?'disabled':''}>Tirar ×1 · ● 100</button><button id="g10" ${SAVE.coins<900?'disabled':''}>Tirar ×10 · ● 900</button><button id="gSkip" style="display:none">Saltar animación</button></div>
+    <div id="gList" style="margin-top:8px;max-height:150px;overflow:auto;font-size:13px"></div>`, true);
   const go = (n, cost) => () => { if(slotBusy || SAVE.coins < cost) return;
     SAVE.coins -= cost; slotCoins = SAVE.coins; const r = []; for(let i=0;i<n;i++) r.push(gachaRoll());
     persist(); refreshMenu(); $('#gCoins').textContent = slotCoins; $('#g1').disabled = $('#g10').disabled = true; $('#gList').innerHTML = ''; slotPlay(r, n > 1); };

@@ -14,6 +14,12 @@ Regla: al **finalizar cada tarea** se añade una entrada arriba (la más recient
 
 ## Entradas
 
+### 2026-10-21 — v0.8.1: tragamonedas más compacta y arriba
+- **Qué cambió:** lienzo 320×230 → 280×150 (apaisado), casillas de 48 px; el panel del Gacha se alinea arriba (`openPanel(..., arriba)`) y la lista de resultados tiene altura máxima.
+- **Ficheros:** `index.html` (`SLOT_W/SLOT_H/SLOT_CELL`, `slotSymbol`, `slotDraw`, `openPanel`, `panelGacha`), `scripts/smoke.js`, `README.md`, `CHANGELOG.md`
+- **Decisiones:** corrección → `0.8.1`; sin poder ver el navegador, la prueba sólo garantiza proporción apaisada y la alineación superior; el tamaño final lo juzga el usuario.
+- **Pendiente / siguiente paso:** que el usuario compruebe el tamaño en su pantalla y móvil; sincronizar y commitear cuando lo ordene.
+
 ### 2026-10-21 — Mejora 7: habilidades de los monstruos y jefes con guion (v0.8.0)
 - **Qué cambió:** violetas con la mitad de alcance; disparos bloqueados por montañas y árboles; embestidas con aviso en el suelo (Chispamurci, Magmaroca, Dracoaleta); jefes con guion fijo de 5 ataques por tipo con avisos, estados en el jugador (burn/slow/root/dark) y furia al 30% (+20% daño).
 - **Ficheros:** `index.html` (tablas `REACH`, `PS_FX`, `BOSS_ATK`, `BOSS_SCRIPT` en la sección 1; `spawnBoss`, `enemyDash`, `bossStep`, `bossAct`, `hitPlayerFx` en lógica; `drawTelegraph`, `drawPath` en dibujo), `scripts/smoke.js`, `README.md`, `CHANGELOG.md`

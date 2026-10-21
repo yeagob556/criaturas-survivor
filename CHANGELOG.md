@@ -2,6 +2,11 @@
 
 Versionado: `0.x.0` por cada mejora (la 0.1.0 es la primera versión); `0.x.y` para correcciones. La versión que muestra el juego (`VERSION` en `index.html`) debe coincidir con el primer encabezado de este fichero.
 
+## v0.8.1 — 2026-10-21 · Tragamonedas más compacta y arriba
+- La máquina del Gacha pasa de 320×230 a 280×150 (apaisada: más ancha que alta, `SLOT_W`/`SLOT_H`), con casillas de 48 px y símbolos a escala 0,74.
+- El panel del Gacha se pega al borde superior (`openPanel(..., arriba)`) en vez de centrarse en vertical, así la máquina ya no baja cuando crece la lista de resultados; la lista tiene altura máxima con desplazamiento. Se funden en una sola línea las monedas y la explicación de los rodillos.
+- `scripts/smoke.js` comprueba que el lienzo sea apaisado (ancho/alto ≥ 1,7) y que sólo el Gacha alinea arriba.
+
 ## v0.8.0 — 2026-10-21 · Mejora 7: habilidades de los monstruos y jefes con guion
 - **Violetas (Sombra) con la mitad de alcance:** contacto, disparos y vida de las balas ×0.5 (`REACH`, `reachOf()`); se multiplica con el efecto de Niebla (×0.45).
 - **Los disparos ya no atraviesan montañas ni árboles,** ni los tuyos ni los de los hostiles. Las piedras no los frenan (siguen rompiéndose).
