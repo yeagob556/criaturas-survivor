@@ -394,7 +394,8 @@ src += `
   { const m = nuevoMega(); m.ad.agg = 0.8; m.ad.armor = 0.3; G.px = G.py = 0; draw(); }
   // --- el Titan actuando SOLO, sin trucos de pausa (en la v0.10.0/1 el primer descanso lanzaba un error y congelaba la pantalla) ---
   { newRun(); getChunk = () => []; G.moves = []; G.evT = 1e9; G.nextBoss = 1e9; G.px = G.py = 0; G.hp = G.maxhp = 1e9; G.t = MEGA.first - 1; const vistos = {};
-    for (let i = 0; i < 60 * 200; i++) { G.hp = G.maxhp; G.inv = 0; G.enemies = G.enemies.filter(e => e.mega || e.minion); G.px = (i % 600 < 300) ? 0 : 700; G.py = 0; if (G.paused) chooseOffer(curOffer.opts[0]);
+    for (let i = 0; i < 60 * 200; i++) { G.hp = G.maxhp; G.inv = 0; G.enemies = G.enemies.filter(e => e.mega || e.minion); { const m0 = G.mega; if (m0) { const d = [120, 300, 600][Math.floor(i / 200) % 3]; G.px = m0.x - d; G.py = m0.y; } }      // distancia fija al Titan: cerca, media y lejos por turnos
+      if (G.paused) chooseOffer(curOffer.opts[0]);
       update(1 / 60); if (i % 5 === 0) draw(); if (G.mega) vistos[G.mega.bs.kind] = (vistos[G.mega.bs.kind] || 0) + 1; }
     for (const k of ['summon', 'pulse', 'ring', 'fan', 'zone', 'burst', 'dash', 'tornado', 'rain', 'rest']) if (!vistos[k]) throw new Error('FALLO en 200 s el Titan no uso: ' + k + ' ' + JSON.stringify(vistos));
     const m = G.mega; if (!TYPES[m.bs.atk]) throw new Error('FALLO tipo de ataque invalido: ' + m.bs.atk); startBossStep(m, ['rest', 'Descanso']); startBossStep(m, ['rest', 'Descanso', 'primordio']); if (!TYPES[m.bs.atk]) throw new Error('FALLO un descanso deja un tipo invalido'); draw(); }
@@ -420,6 +421,27 @@ src += `
     SAVE.dex.c.mega = {seen:true, kills:0}; if (!menuEscena(0).actores.some(x => x.tipo === 'primordio')) throw new Error('FALLO el Titan visto debe cruzar el fondo'); SAVE.dex.c.mega = {seen:false, kills:0}; if (menuEscena(0).actores.some(x => x.tipo === 'primordio')) throw new Error('FALLO el Titan no visto no debe salir'); }
   { const css = __html.match(/<style>([\\s\\S]*?)<\\/style>/)[1]; const m = css.match(/#ovMenu\\s*\\{[^}]*rgba\\(\\s*\\d+\\s*,\\s*\\d+\\s*,\\d+\\s*,\\s*([0-9.]+)\\s*\\)/); if (!m || !(parseFloat(m[1]) <= 0.5)) throw new Error('FALLO el menu debe ser translucido para ver el fondo'); }
   console.log('FONDO DEL MENU OK');
+  // --- musica en modo directo (file://): fundidos calculados a mano sobre el volumen del <audio> ---
+  { const dPrev = MUSIC_DIRECT, nPrev = musicNow; MUSIC_DIRECT = true; let reloj = 100; musicNow = () => reloj; music.tracks = {}; music.cur = null; music.bad = {}; music.duck = 1; SAVE.music = true;
+    newRun(); const mapaD = t => MAPS.find(x => x.type === t); setMap(mapaD('agua')); const ta = music.tracks.agua; if (!ta || !ta.direct && ta.g) throw new Error('FALLO en modo directo no deben crearse nodos de WebAudio'); ta.a.duration = 60; ta.a.currentTime = 30;
+    musicTick(); eq(ta.a.volume, 0, 'empieza en silencio'); reloj += 1.5; musicTick(); near(ta.a.volume, MUSIC_VOL * 0.5, 'a mitad del fundido'); reloj += 1.6; musicTick(); near(ta.a.volume, MUSIC_VOL, 'volumen pleno tras 3 s');
+    setMap(mapaD('sombra')); const ts = music.tracks.sombra; ts.a.duration = 60; ts.a.currentTime = 30; reloj += 1.5; musicTick(); near(ta.a.volume, MUSIC_VOL * 0.5, 'la anterior baja'); near(ts.a.volume, MUSIC_VOL * 0.5, 'la nueva sube'); eq(ta.a.paused ? 1 : 0, 0, 'la anterior aun suena durante el fundido');
+    reloj += 1.7; musicTick(); eq(ta.a.volume, 0, 'la anterior queda en silencio'); eq(ta.a.paused ? 1 : 0, 1, 'y se pausa'); near(ts.a.volume, MUSIC_VOL, 'la nueva a pleno');
+    ts.a.currentTime = 0.5; musicTick(); near(ts.a.volume, MUSIC_VOL * 0.25, 'entrada suave tras el bucle'); ts.a.currentTime = 30; duckMusic(0.3); musicTick(); near(ts.a.volume, MUSIC_VOL * 0.3, 'al pausar baja'); duckMusic(1);
+    stopMusic(1.5); reloj += 2; musicTick(); eq(ts.a.volume, 0, 'al parar se apaga'); eq(ts.a.paused ? 1 : 0, 1, 'y se pausa');
+    MUSIC_DIRECT = dPrev; musicNow = nPrev; music.tracks = {}; music.cur = null; music.bad = {}; music.duck = 1; }
+  // --- exportar / importar partida ---
+  { newRun(); SAVE = defaultSave(); SAVE.coins = 1234; SAVE.owned.chispin = {shiny:true}; SAVE.sel = 'chispin'; SAVE.up.dmg = 4; SAVE.stats.titans = 2; SAVE.stats.kills = 777; SAVE.dex.c['leg-fuego'] = {seen:true, kills:5, shiny:false}; SAVE.dex.m.lago = true; SAVE.music = false;
+    const txt = exportData(), jx = JSON.parse(txt); same(jx.juego, 'criaturas-survivor', 'envoltura'); same(jx.version, VERSION, 'version en el fichero'); SAVE = defaultSave(); const r = importSave(txt);
+    eq(r.ok ? 1 : 0, 1, 'importa lo exportado'); eq(SAVE.coins, 1234, 'monedas'); same(SAVE.sel, 'chispin', 'companero elegido'); eq(SAVE.owned.chispin.shiny ? 1 : 0, 1, 'shiny'); eq(SAVE.up.dmg, 4, 'mejoras'); eq(SAVE.stats.titans, 2, 'titanes'); eq(SAVE.stats.kills, 777, 'bajas');
+    eq(SAVE.dex.c['leg-fuego'].kills, 5, 'criaturario'); eq(SAVE.dex.m.lago ? 1 : 0, 1, 'mapas visitados'); eq(SAVE.music ? 1 : 0, 0, 'ajuste de musica'); eq(SAVE.dex.c.chispin.seen ? 1 : 0, 1, 'los companeros cuentan como descubiertos');
+    for (const malo of ['esto no es json', '{}', '{"juego":"otro","guardado":{"owned":{"brasito":{}}}}', '{"juego":"criaturas-survivor"}', '{"juego":"criaturas-survivor","guardado":{"owned":{}}}', '{"juego":"criaturas-survivor","guardado":{"owned":{"inventado":{}}}}', 'null', '[]', '"texto"']) { const q = parseSaveFile(malo); if (q.ok || !q.error) throw new Error('FALLO se acepto un fichero invalido: ' + malo); }
+    const coins0 = SAVE.coins; importSave('no vale'); eq(SAVE.coins, coins0, 'un fichero invalido no cambia la partida');
+    const sucio = '{"juego":"criaturas-survivor","guardado":{"coins":1e30,"sel":"inventado","owned":{"brasito":{"shiny":1},"inventado":{"shiny":true},"__proto__":{"x":1}},"up":{"dmg":999,"hp":-5,"raro":7},"stats":{"runs":"mucho","kills":1e99,"titans":NaN},"dex":{"c":{"falso":{"seen":true},"brasito":{"seen":true,"kills":-3}},"m":{"lago":true,"nada":true}},"sound":0}}';
+    const q = parseSaveFile(sucio.replace('NaN', 'null')); eq(q.ok ? 1 : 0, 1, 'acepta pero sanea'); eq(q.save.coins, 1e9, 'monedas acotadas'); eq(q.save.up.dmg, MAX_UP, 'mejora acotada al maximo'); eq(q.save.up.hp, 0, 'mejora negativa a 0'); if ('raro' in q.save.up) throw new Error('FALLO clave de mejora inventada'); same(q.save.sel, 'brasito', 'companero invalido -> uno que se tiene');
+    if (Object.keys(q.save.owned).join() !== 'brasito') throw new Error('FALLO ids inventados en owned: ' + Object.keys(q.save.owned)); eq(q.save.stats.runs, 0, 'estadistica no numerica a 0'); eq(q.save.stats.kills, 1e12, 'estadistica acotada'); if ('falso' in q.save.dex.c || 'nada' in q.save.dex.m) throw new Error('FALLO ids inventados en el criaturario');
+    eq(q.save.dex.c.brasito.kills, 0, 'bajas negativas a 0'); eq(q.save.dex.m.lago ? 1 : 0, 1, 'mapa valido conservado'); eq(q.save.sound ? 1 : 0, 0, 'sound:0 cuenta como apagado'); if (({}).x !== undefined) throw new Error('FALLO contaminacion de prototipos'); SAVE = defaultSave(); }
+  console.log('PORTABLE (musica directa, exportar/importar) OK');
   // --- version coherente con la documentacion ---
   const top = (__changelog.match(/^## v(\\d+\\.\\d+\\.\\d+)/m) || [])[1]; if (top !== VERSION) throw new Error('FALLO version: index.html=' + VERSION + ' CHANGELOG=' + top);
   if (!__readme.includes('v' + VERSION)) throw new Error('FALLO el README no menciona la version v' + VERSION);

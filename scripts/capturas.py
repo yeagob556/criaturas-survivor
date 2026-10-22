@@ -4,7 +4,7 @@ que las pruebas de Node no pueden ver. Escenas: menú, paneles, Gacha (x1 y x10)
 furia, hierba/líquido y subida de nivel. Imprime los errores de JavaScript que haya y los FPS aproximados (sin GPU)."""
 import json
 from playwright.sync_api import sync_playwright
-BASE = 'http://127.0.0.1:8118/'; OUT = '/out/'
+BASE = 'http://127.0.0.1:8000/'; OUT = '/out/'
 logs = []
 def nuevo(b, w, h, mobile=False):
     ctx = b.new_context(viewport={'width': w, 'height': h}, is_mobile=mobile, has_touch=mobile, device_scale_factor=1)

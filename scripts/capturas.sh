@@ -16,5 +16,5 @@ cp "$RAIZ/index.html" "$TMP/"; [ -d "$RAIZ/music" ] && cp -r "$RAIZ/music" "$TMP
 mkdir -p "$SALIDA"
 docker run --rm --shm-size=1g --user "$(id -u):$(id -g)" -e HOME=/tmp \
   -v "$TMP:/web:ro" -v "$RAIZ/scripts/capturas.py:/capturas.py:ro" -v "$SALIDA:/out:rw" "$IMG" \
-  sh -c "pip install -q --user playwright==$VER >/dev/null 2>&1; (python -m http.server 8118 --bind 127.0.0.1 -d /web >/dev/null 2>&1 &); sleep 1; python /capturas.py"
+  sh -c "pip install -q --user playwright==$VER >/dev/null 2>&1; (python -m http.server 8000 --bind 127.0.0.1 -d /web >/dev/null 2>&1 &); sleep 1; python /capturas.py"
 echo "Capturas en $SALIDA ($(ls "$SALIDA"/*.png | wc -l) imágenes)"

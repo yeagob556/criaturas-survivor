@@ -14,6 +14,13 @@ Regla: al **finalizar cada tarea** se añade una entrada arriba (la más recient
 
 ## Entradas
 
+### 2026-10-22 — v0.12.0: versión portable y repositorio listo para GitHub
+- **Qué cambió:** paquetes portables (`empaquetar.sh`: completa con música ~16 MB y ligera ~160 KB, con .zip, LEEME, créditos y lanzadores); música en modo directo para `file://` (WebAudio queda mudo allí; medido); exportar/importar partida validado y saneado; `probar-portable.sh` (Chromium real por `file://`: carga, música, exportar/importar); `publicar-github.sh` (crea el repo PRIVADO, simula por defecto); CI (`smoke.yml`); LICENSE (todos los derechos reservados); capturas y secciones nuevas en el README.
+- **Ficheros:** `index.html` (4b música directa, 2 exportar/importar, Estadísticas), `scripts/empaquetar.sh`, `scripts/probar-portable.sh`, `scripts/probar_portable.py`, `scripts/publicar-github.sh`, `scripts/audit-secrets.sh` (admite carpeta), `.github/workflows/smoke.yml`, `LICENSE`, `docs/capturas/`, `.gitignore`, `README.md`, `CHANGELOG.md`, `CLAUDE.md`, `scripts/smoke.js`
+- **Decisiones:** el repo se prepara pero NO se sube: `publicar-github.sh --apply` lo ejecuta el usuario (código fuera de la torre); música fuera de Git por la regla 002 (va en el paquete portable); el ingestor de partidas ignora todo lo desconocido; la demo y la pública NO se sincronizan (hay jugadores activos), sólo la versión de prueba.
+- **Hallazgos:** `capturas/` sin barra ignoraba también `docs/capturas/`; el Docker de esta sesión no ve el `/tmp` del shell (carpetas bajo el home).
+- **Pendiente:** el usuario ejecuta `publicar-github.sh --apply` cuando quiera; sincronizar demo y pública cuando no haya jugadores activos.
+
 ### 2026-10-22 — v0.11.0: fondo animado en el menú
 - **Qué cambió:** mapa de bioma de fondo en el menú con criaturas por rutas fijas (compañero + cola de hostiles que lo persiguen y orbes, 2.º compañero, legendario del mapa, Titán si se ha visto); rota cada 16 s con fundido a negro; menú translúcido.
 - **Ficheros:** `index.html` (sección 8b: `drawMenuBg`, `menuEscena`, `menuMapa`, `RUTA`, `withCtx`; `ctx` pasa a `let`; `frame`, `resize`, CSS `#ovMenu`), `scripts/smoke.js`, `scripts/capturas.py/.sh`, `README.md`, `CHANGELOG.md`, `CLAUDE.md`
@@ -113,7 +120,7 @@ Regla: al **finalizar cada tarea** se añade una entrada arriba (la más recient
 - **Qué cambió:** 12 pasivas en 4 ramas (Agilidad, Fortaleza, Poder, Ingenio) con exclusión por parejas, y movimientos Esporas, Zarpazo y Cometa.
 - **Ficheros:** `index.html` (tablas `BRANCHES`/`PASSIVES`, `mult`, `offerOptions`, `chooseOffer`, `fire`, HUD), `scripts/smoke.js`, `README.md`, `CHANGELOG.md`
 - **Decisiones:** interpreté «si sale una de agilidad que no salga de fortaleza» como bloqueo de la rama opuesta durante la partida y sin mezcla en la misma oferta; se quitaron Zapatillas/Entrenamiento/Atracción genéricas porque saltaban las ramas. Revisar si el usuario quería otra regla.
-- **Pendiente / siguiente paso:** probar en navegador (puerto temporal 8118); ajustar valores por nivel; sincronizar y commitear solo cuando lo ordene.
+- **Pendiente / siguiente paso:** probar en navegador (servidor temporal); ajustar valores por nivel; sincronizar y commitear solo cuando lo ordene.
 
 ### 2026-10-21 — Mejora 1: mapas con buff por tipo y Criaturario
 - **Qué cambió:** 6 mapas rotativos (cada 75 s) que dan ×1.2 en su especialidad a las criaturas de su tipo; hostiles y legendarios con tipo; enciclopedia «Criaturario» con desbloqueo por descubrimiento.

@@ -112,7 +112,7 @@ const fmtT = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(Mat
 
 /* ---------- 1. DATOS ---------- */
 // Versión visible en el menú, la Guía y la esquina del juego. Debe coincidir con el último encabezado de CHANGELOG.md (lo comprueba scripts/smoke.js).
-const VERSION = '0.11.0', VERSION_DATE = '2026-10-22';
+const VERSION = '0.12.0', VERSION_DATE = '2026-10-22';
 const TYPES = {
   fuego:{n:'Fuego',c:'#ff7a3d',h:18}, agua:{n:'Agua',c:'#4aa8ff',h:205}, planta:{n:'Planta',c:'#5fcf6a',h:120},
   electrico:{n:'Eléctrico',c:'#ffd93b',h:50}, sombra:{n:'Sombra',c:'#8a5cc2',h:270}, dragon:{n:'Dragón',c:'#4f6bff',h:230}
@@ -346,6 +346,32 @@ function ensureDex(S){
   for(const id in S.owned){ const d = S.dex.c[id] = S.dex.c[id] || {seen:true, kills:0}; d.seen = true; d.shiny = !!S.owned[id].shiny; }
   return S;
 }
+
+// Exportar / importar partida (para llevarla a otro navegador u ordenador): fichero JSON con una envoltura que lo identifica. Al importar se
+// valida y se sanea todo (sólo ids conocidos, números acotados), así un fichero manipulado no puede romper el guardado.
+function exportData(){ return JSON.stringify({juego:'criaturas-survivor', version:VERSION, fecha:new Date().toISOString().slice(0,10), guardado:SAVE}, null, 1); }
+function parseSaveFile(text){
+  let j; try{ j = JSON.parse(text); }catch(e){ return {ok:false, error:'El fichero no es una partida (no es JSON).'}; }
+  const g = j && j.juego === 'criaturas-survivor' && j.guardado;
+  if(!g || typeof g !== 'object' || !g.owned || typeof g.owned !== 'object') return {ok:false, error:'El fichero no es una partida de Criaturas Survivor.'};
+  const num = (v, max) => (typeof v === 'number' && isFinite(v)) ? clamp(Math.floor(v), 0, max) : 0, tiene = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+  const s = defaultSave(); s.coins = num(g.coins, 1e9); s.owned = {};
+  for(const sp of SPECIES) if(tiene(g.owned, sp.id)) s.owned[sp.id] = {shiny:!!(g.owned[sp.id] && g.owned[sp.id].shiny)};
+  if(!Object.keys(s.owned).length) return {ok:false, error:'La partida no tiene ningún compañero.'};
+  s.sel = (typeof g.sel === 'string' && tiene(s.owned, g.sel)) ? g.sel : Object.keys(s.owned)[0];
+  for(const u of UPGRADES) s.up[u.id] = num(g.up && g.up[u.id], MAX_UP);
+  const st = g.stats || {}; s.stats = {runs:num(st.runs, 1e9), bestT:num(st.bestT, 1e9), bestL:num(st.bestL, 1e9), kills:num(st.kills, 1e12), titans:num(st.titans, 1e9)};
+  const flag = v => v === undefined ? true : !!v; s.sound = flag(g.sound); s.music = flag(g.music); s.dex = {c:{}, m:{}};      // ausente = encendido; cualquier valor falso = apagado
+  const gc = (g.dex && g.dex.c) || {}, gm = (g.dex && g.dex.m) || {};
+  for(const d of DEX){ const e = tiene(gc, d.id) && gc[d.id]; if(e && typeof e === 'object') s.dex.c[d.id] = {seen:!!e.seen, kills:num(e.kills, 1e12), shiny:!!e.shiny}; }
+  for(const mp of MAPS) if(tiene(gm, mp.id) && gm[mp.id] === true) s.dex.m[mp.id] = true;
+  return {ok:true, save:ensureDex(s)};
+}
+function importSave(text){ const r = parseSaveFile(text); if(r.ok){ SAVE = r.save; persist(); refreshMenu(); } return r; }
+function descargarPartida(){
+  const blob = new Blob([exportData()], {type:'application/json'}), a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'criaturas-survivor-partida.json';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
 let SAVE = loadSave();
 function persist(){ try{ localStorage.setItem(KEY, JSON.stringify(SAVE)); }catch(e){} }
 
@@ -406,28 +432,34 @@ const sfx = {
 
 /* ---------- 4b. MÚSICA (ficheros opcionales music/<tipo>.mp3, generados con IA local) ---------- */
 // Una pista chillout por tipo de mapa. Si el fichero no existe, ese mapa va sin música (no es un error).
-// Al cambiar de mapa hay fundido cruzado y cada pista recuerda por dónde iba. Se usa <audio> + WebAudio porque el volumen
-// de <audio> no se puede controlar en iOS; así el CSP sólo necesita media-src 'self'.
+// Al cambiar de mapa hay fundido cruzado y cada pista recuerda por dónde iba. Con servidor (http/https) se usa <audio> + WebAudio porque el
+// volumen de <audio> no se puede controlar en iOS; así el CSP sólo necesita media-src 'self'. Si se abre con doble clic (file://) el navegador
+// silencia el audio que pasa por WebAudio (CORS): en ese caso (MUSIC_DIRECT) se usa el volumen del propio <audio> con los fundidos calculados a mano.
 const MUSIC_VOL = 0.30, MUSIC_FADE = 3, MUSIC_LOOP_FADE = 2;
+let MUSIC_DIRECT = typeof location !== 'undefined' && location.protocol === 'file:';
+let musicNow = () => MUSIC_DIRECT ? performance.now()/1000 : AC.currentTime;       // reloj de los fundidos (las pruebas lo sustituyen)
 const music = {master:null, tracks:{}, cur:null, bad:{}, duck:1};
 function musicTrack(type){
   let t = music.tracks[type]; if(t) return t;
   const a = new Audio('music/' + type + '.mp3'); a.loop = true; a.preload = 'auto';
   a.addEventListener('error', () => { music.bad[type] = true; if(music.cur === type) music.cur = null; });
+  if(MUSIC_DIRECT){ a.volume = 0; return music.tracks[type] = {a, vol:0, fade:null, stopAt:0}; }
   const g = AC.createGain(), lg = AC.createGain(); g.gain.value = 0;      // g: fundido entre pistas; lg: suaviza el punto de bucle
   AC.createMediaElementSource(a).connect(lg); lg.connect(g); g.connect(music.master);
   return music.tracks[type] = {a, g, lg, stopAt:0};
 }
 function fadeTrack(t, to, secs, thenPause){
-  const now = AC.currentTime;
+  const now = musicNow();
+  if(MUSIC_DIRECT){ t.fade = {from:t.vol, to, t0:now, secs}; t.stopAt = thenPause ? now + secs + 0.1 : 0; return; }
   t.g.gain.cancelScheduledValues(now); t.g.gain.setValueAtTime(t.g.gain.value, now); t.g.gain.linearRampToValueAtTime(to, now + secs);
   t.stopAt = thenPause ? now + secs + 0.1 : 0;
 }
 function playMusic(type){
   if(!SAVE.music) return;
   try{
-    AC = AC || new (window.AudioContext||window.webkitAudioContext)(); if(AC.state === 'suspended' && AC.resume) AC.resume();
-    if(!music.master){ music.master = AC.createGain(); music.master.gain.value = MUSIC_VOL*music.duck; music.master.connect(AC.destination); }
+    if(!MUSIC_DIRECT){
+      AC = AC || new (window.AudioContext||window.webkitAudioContext)(); if(AC.state === 'suspended' && AC.resume) AC.resume();
+      if(!music.master){ music.master = AC.createGain(); music.master.gain.value = MUSIC_VOL*music.duck; music.master.connect(AC.destination); } }
     if(music.cur === type || music.bad[type]) return;
     const prev = music.cur && music.tracks[music.cur], nx = musicTrack(type);
     if(prev) fadeTrack(prev, 0, MUSIC_FADE, true);
@@ -436,13 +468,18 @@ function playMusic(type){
     music.cur = type;
   }catch(e){}
 }
-function stopMusic(secs=1.5){ if(!AC || !music.cur) return; fadeTrack(music.tracks[music.cur], 0, secs, true); music.cur = null; }
-function duckMusic(v){ music.duck = v; if(music.master) music.master.gain.setTargetAtTime(MUSIC_VOL*v, AC.currentTime, 0.2); }
-function musicTick(){      // cada fotograma: pausa las pistas ya apagadas y suaviza el punto donde la pista vuelve a empezar
-  if(!AC) return;
+function stopMusic(secs=1.5){ if((!MUSIC_DIRECT && !AC) || !music.cur) return; fadeTrack(music.tracks[music.cur], 0, secs, true); music.cur = null; }
+function duckMusic(v){ music.duck = v; if(!MUSIC_DIRECT && music.master) music.master.gain.setTargetAtTime(MUSIC_VOL*v, AC.currentTime, 0.2); }
+function musicTick(){      // cada fotograma: pausa las pistas ya apagadas, suaviza el punto de bucle y (en modo directo) aplica los fundidos al volumen
+  if(!MUSIC_DIRECT && !AC) return;
+  const now = musicNow();
   for(const k in music.tracks){ const t = music.tracks[k], a = t.a;
-    if(t.stopAt && AC.currentTime >= t.stopAt){ a.pause(); t.stopAt = 0; }
-    if(!a.paused && a.duration > MUSIC_LOOP_FADE*3) t.lg.gain.value = clamp(Math.min(a.currentTime, a.duration - a.currentTime) / MUSIC_LOOP_FADE, 0, 1); }
+    if(t.stopAt && now >= t.stopAt){ a.pause(); t.stopAt = 0; }
+    const lgv = (!a.paused && a.duration > MUSIC_LOOP_FADE*3) ? clamp(Math.min(a.currentTime, a.duration - a.currentTime) / MUSIC_LOOP_FADE, 0, 1) : 1;
+    if(MUSIC_DIRECT){
+      if(t.fade){ const f = clamp((now - t.fade.t0) / t.fade.secs, 0, 1); t.vol = t.fade.from + (t.fade.to - t.fade.from)*f; if(f >= 1) t.fade = null; }
+      a.volume = clamp(t.vol * lgv * MUSIC_VOL * music.duck, 0, 1); }
+    else if(!a.paused && a.duration > MUSIC_LOOP_FADE*3) t.lg.gain.value = lgv; }
 }
 
 /* ---------- 5. ESTADO ---------- */
@@ -1536,7 +1573,16 @@ function panelStats(){
   openPanel('Estadísticas', [['Runs',s.runs],['Mejor tiempo',fmtT(s.bestT)],['Mejor nivel',s.bestL],['Enemigos derrotados',s.kills],['Titanes derrotados',s.titans||0],
     ['Compañeros',Object.keys(SAVE.owned).length+' / '+SPECIES.length],['Shinies',Object.values(SAVE.owned).filter(o=>o.shiny).length]]
     .map(([a,b]) => `<div class="stat"><span>${a}</span><b>${b}</b></div>`).join('') +
-    '<div class="center" style="margin-top:14px"><button id="bReset">Borrar toda la partida</button></div>');
+    '<div class="menu" style="margin-top:14px"><button id="bExport">Exportar partida</button><button id="bImport">Importar partida</button></div>' +
+    '<p class="hint" id="sMsg">La partida se guarda en este navegador; expórtala a un fichero para llevarla a otro ordenador o navegador.</p>' +
+    '<div class="center" style="margin-top:10px"><button id="bReset">Borrar toda la partida</button></div>');
+  const aviso = (t, mal) => { const e = $('#sMsg'); e.textContent = t; e.style.color = mal ? '#ff6a7d' : '#7be061'; };
+  $('#bExport').onclick = () => { descargarPartida(); aviso('Partida exportada: guarda el fichero «criaturas-survivor-partida.json».'); };
+  $('#bImport').onclick = () => { const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
+    inp.onchange = async () => { const f = inp.files && inp.files[0]; if(!f) return; const r = parseSaveFile(await f.text());
+      if(!r.ok){ aviso(r.error, true); return; }
+      if(!confirm('Esto reemplaza tu partida actual por la del fichero. ¿Continuar?')) return;
+      SAVE = r.save; persist(); refreshMenu(); panelStats(); aviso('Partida importada.'); }; inp.click(); };
   $('#bReset').onclick = () => { if(confirm('¿Borrar todo el progreso?')){ SAVE = defaultSave(); persist(); refreshMenu(); hide('#ovPanel'); } };
 }
 function panelGuide(){

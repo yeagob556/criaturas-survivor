@@ -1,13 +1,25 @@
 # Criaturas Survivor
 
-**Versión actual: v0.11.0** (2026-10-21). La versión se ve en el menú, en la Guía y en la esquina inferior derecha durante la partida.
+**Versión actual: v0.12.0** (2026-10-22). La versión se ve en el menú, en la Guía y en la esquina inferior derecha durante la partida.
 
-Juego de supervivencia tipo *Survivor* para el navegador: eliges un compañero, esquivas hordas, subes de nivel y mejoras tus ataques. Todo el juego es **un solo `index.html`** (canvas + JavaScript, sin dependencias ni servidor); la música de fondo son seis ficheros de audio opcionales. Proyecto de aprendizaje.
+Juego de supervivencia tipo *Survivor* para el navegador: eliges un compañero, esquivas hordas, subes de nivel y mejoras tus ataques. Todo el juego es **un solo `index.html`** (canvas + JavaScript, sin dependencias ni servidor); la música de fondo son seis ficheros de audio opcionales. Se puede **llevar en una carpeta** y jugar con doble clic (ver [Versión portable](#versión-portable)). Proyecto de aprendizaje.
 
 Las criaturas se dibujan por código a partir de una semilla; no hay imágenes ni nombres de terceros (ver [`rules/001-sin-assets-oficiales.md`](rules/001-sin-assets-oficiales.md)). **La música de fondo está generada con IA** (ver [Créditos](#créditos-y-licencias)).
 
+## Capturas
+| | | |
+|---|---|---|
+| ![Menú con el fondo animado](docs/capturas/menu.png) | ![Partida](docs/capturas/partida.png) | ![Mapa de agua](docs/capturas/mapa-agua.png) |
+| ![Gacha tragamonedas](docs/capturas/gacha.png) | ![Jefe con aviso en el suelo](docs/capturas/jefe.png) | ![Lluvia de fuego](docs/capturas/evento-fuego.png) |
+| ![Cofres](docs/capturas/cofres.png) | ![Primordio, el Titán](docs/capturas/titan.png) | ![Criaturario](docs/capturas/criaturario.png) |
+
+*(Se regeneran con `bash scripts/capturas.sh`.)*
+
 ## Cómo jugar
-Abre `index.html` en el navegador o sírvelo con cualquier servidor estático (para oír la música hace falta servirlo, no abrirlo como `file://`).
+Tres formas, de la más sencilla a la más completa:
+1. **Portable (doble clic):** descomprime el `.zip` de [Versión portable](#versión-portable) y abre `index.html` (o `Jugar.bat` en Windows, `jugar.sh` en Linux/macOS). No instala nada ni necesita conexión; la música también suena así (modo directo para `file://`).
+2. **Desde el repositorio:** abre `index.html` con el navegador, o sírvelo con cualquier servidor estático (`python3 -m http.server`).
+3. **Servido en el homelab:** ver [Publicación](#publicación-homelab).
 
 | Acción | Control |
 |---|---|
@@ -42,6 +54,21 @@ Abre `index.html` en el navegador o sírvelo con cualquier servidor estático (p
 | Progreso | Monedas → mejoras permanentes y Gacha; todo se guarda en `localStorage` | `UPGRADES`, `SAVE` |
 | Gacha | Tragamonedas retro baja y ancha (320×108) que **sólo se despliega al tirar**, **sólo visual**: criatura · tipo · desenlace (NEW / ✨ / +40); la tirada ya está decidida al girar | `gachaRoll()`, `slotSpin()`, `slotDraw()` |
 
+## Versión portable
+Para llevar el juego en una memoria USB, un correo o a otro ordenador:
+```
+bash scripts/empaquetar.sh     # crea dist/ (fuera de Git) con dos carpetas y su .zip cada una
+```
+| Paquete | Contenido | Tamaño |
+|---|---|---|
+| `criaturas-survivor-v<versión>-portable` | `index.html` + `music/` (6 pistas) + `LEEME.txt` + `CREDITOS.txt` + `Jugar.bat` + `jugar.sh` + `jugar-con-servidor.sh` | ~16 MB |
+| `criaturas-survivor-v<versión>-ligera` | lo mismo sin `music/` (sin música; se puede copiar la carpeta después) | ~160 KB |
+
+- **Sin instalar nada:** basta un navegador actual (Chrome, Edge, Firefox, Safari). Si el navegador no reprodujera la música al abrir el fichero directamente, `jugar-con-servidor.sh` lo sirve en local con `python3`.
+- **Música desde `file://`:** al abrir un fichero local el navegador silencia el audio que pasa por WebAudio (CORS; medido: señal 0 frente a 0,14 con servidor). Por eso el juego tiene un **modo directo** que se activa solo en `file://` y aplica los fundidos sobre el volumen del propio `<audio>`.
+- **Tu partida no viaja con la carpeta** (vive en el navegador): usa *Menú › Estadísticas › Exportar partida* y, en el otro sitio, *Importar partida* (fichero `.json` validado y saneado).
+- **Comprobación:** `bash scripts/probar-portable.sh dist/criaturas-survivor-v<versión>-portable` abre el paquete por `file://` en Chromium real y verifica que carga, que suena la música y que exportar/importar funcionan.
+
 ## Estructura del repositorio
 ```
 index.html                 el juego completo (secciones comentadas, ver abajo)
@@ -49,9 +76,15 @@ music/                     6 pistas <tipo>.mp3 (fuera de Git; se regeneran con l
 scripts/smoke.js           prueba en Node con DOM y audio falsos (12 min simulados + aserciones exactas)
 scripts/audit-secrets.sh   auditoría de secretos antes de cada commit
 scripts/sync-dashboard.sh  copia index.html y music/ al homelab: --test = versión de prueba; sin --test = demo y pública (simula; --apply)
+scripts/empaquetar.sh        versión portable en dist/ (carpeta completa y ligera, con .zip)
+scripts/probar-portable.sh abre un paquete portable por file:// en Chromium real y lo verifica (probar_portable.py)
+scripts/publicar-github.sh crea el repo PRIVADO en GitHub y sube main (simula; --apply)
 scripts/capturas.sh         capturas de pantalla con Chromium sin pantalla (Playwright en Docker; PNG en capturas/, fuera de Git)
 scripts/generar_musica.sh  genera las 6 pistas con ACE-Step en el ComfyUI del PC (simula; --apply)
 rules/                     reglas del proyecto (una por fichero)
+docs/capturas/             capturas del README
+.github/workflows/         integración continua: auditoría de secretos + prueba de humo
+LICENSE                    todos los derechos reservados
 CLAUDE.md / AGENTS.md      instrucciones para asistentes de código (AGENTS.md apunta a CLAUDE.md)
 memory.md                  registro de tareas, la más reciente primero
 CHANGELOG.md               historial por versión
@@ -67,6 +100,7 @@ CHANGELOG.md               historial por versión
 
 ## Probar
 ```
+bash scripts/probar-portable.sh dist/criaturas-survivor-v<versión>-portable   # tras empaquetar: el paquete por file:// en Chromium real
 bash scripts/capturas.sh       # capturas de pantalla (comprueba lo visual; 1.ª vez descarga ~3,5 GB de imagen Docker)
 node scripts/smoke.js          # debe acabar en "SMOKE OK" (comprueba también que VERSION coincide con CHANGELOG.md y README.md)
 bash scripts/audit-secrets.sh  # antes de cada commit; debe salir "limpio"
@@ -84,6 +118,14 @@ Necesita ComfyUI arrancado en el PC (`creacion-local`). Cada pista se anota en e
 ## Publicación (homelab)
 Hay tres entornos servidos por contenedores nginx de solo lectura en `dashboard-stack`: una **versión de prueba** (sin caché, accesible desde el panel de acceso), una **demo** tras el panel de acceso y una **versión pública** sin login. El flujo es probar primero (`scripts/sync-dashboard.sh --test --apply`) y, sólo cuando se aprueba, sincronizar la demo y la pública con `scripts/sync-dashboard.sh --apply` (ambas copian `index.html` y `music/`). El servidor debe permitir audio: el CSP lleva `media-src 'self'`. Detalles de despliegue en el repo `dashboard-stack`.
 
+## GitHub
+El repositorio es **privado** (`yeagob556/criaturas-survivor`). Para crearlo y subir `main` (hace antes la auditoría de secretos de todo el historial, comprueba que no haya cambios sin commit y verifica después que quedó privado):
+```
+bash scripts/publicar-github.sh            # simula: muestra qué haría
+bash scripts/publicar-github.sh --apply    # crea el repo privado y sube
+```
+Cada subida ejecuta en GitHub Actions (`.github/workflows/smoke.yml`) la auditoría de secretos y la prueba de humo. Las pistas de `music/`, `dist/`, `capturas/` y los `.zip` **no se suben** (regla 002): la música se regenera con `scripts/generar_musica.sh`.
+
 ## Versionado
 `0.x.0` por cada mejora (la 0.1.0 es la primera versión) y `0.x.y` para correcciones. Al subir de versión se cambian a la vez `VERSION` y `VERSION_DATE` en `index.html` y el primer encabezado de `CHANGELOG.md`; `smoke.js` falla si no coinciden (regla 003).
 
@@ -95,4 +137,4 @@ Hay tres entornos servidos por contenedores nginx de solo lectura en `dashboard-
 Ver [`rules/README.md`](rules/README.md): 001 sin assets oficiales · 002 música de IA declarada y anotada · 003 versión coherente con el CHANGELOG.
 
 ## Estado y pendientes
-Jugable y en mejora continua (v0.11.0). Pendiente: probar a mano en un navegador real (rendimiento con muchos objetos, atascos entre obstáculos), afinar el equilibrio (la subida de nivel es muy rápida), subir el repo a GitHub (privado) y añadir un monitor de disponibilidad en el homelab. Ver `memory.md`.
+Jugable y en mejora continua (v0.12.0). Pendiente: probar a mano el equilibrio (sobre todo el del Titán y la rapidez de la subida de nivel), subir el repo a GitHub y añadir un monitor de disponibilidad en el homelab. Ver `memory.md`.

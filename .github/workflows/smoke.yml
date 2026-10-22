@@ -1,0 +1,21 @@
+name: Pruebas
+# En cada subida: auditoría de secretos y prueba de humo (simula 12 minutos de partida, el Titán, el menú, el guardado y el empaquetado de datos).
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Auditoría de secretos
+        run: bash scripts/audit-secrets.sh
+      - name: Prueba de humo
+        run: node scripts/smoke.js

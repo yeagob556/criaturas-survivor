@@ -1,0 +1,9 @@
+Copyright (c) 2026 yeagob556. Todos los derechos reservados.
+
+Este repositorio es privado. Su contenido (código, textos, datos del juego y la música generada que acompaña a las versiones portables) no
+puede copiarse, modificarse ni distribuirse sin permiso expreso del autor.
+
+Terceros:
+- El juego no incluye imágenes, sonidos, nombres ni código de otros juegos (los gráficos se dibujan por código).
+- La música de music/ (no incluida en el repositorio) está generada con ACE-Step v1 3.5B, publicado bajo licencia Apache-2.0, y es música
+  generada por inteligencia artificial, no compuesta por una persona.
