@@ -12,6 +12,8 @@
   #cv{position:fixed;inset:0;width:100%;height:100%}      /* sólo el lienzo del juego ocupa toda la pantalla; el resto (sprites, tragamonedas) son lienzos normales */
   .ov{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(15,10,28,.82);padding:16px;overflow:auto}
   .ov.on{display:flex}
+  #ovMenu{background:rgba(15,10,28,.30)}      /* el menú deja ver el mapa animado de fondo */
+  #ovMenu .box{background:rgba(42,32,64,.92)}
   .box{background:var(--panel);border:3px solid var(--panel2);border-radius:10px;padding:18px 20px;max-width:760px;width:100%;max-height:100%;overflow:auto}
   h1{margin:0 0 4px;font-size:34px;color:var(--acc);text-align:center;letter-spacing:1px}
   h2{margin:0 0 10px;font-size:22px;color:var(--acc)}
@@ -110,7 +112,7 @@ const fmtT = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(Mat
 
 /* ---------- 1. DATOS ---------- */
 // Versión visible en el menú, la Guía y la esquina del juego. Debe coincidir con el último encabezado de CHANGELOG.md (lo comprueba scripts/smoke.js).
-const VERSION = '0.10.2', VERSION_DATE = '2026-10-21';
+const VERSION = '0.11.0', VERSION_DATE = '2026-10-22';
 const TYPES = {
   fuego:{n:'Fuego',c:'#ff7a3d',h:18}, agua:{n:'Agua',c:'#4aa8ff',h:205}, planta:{n:'Planta',c:'#5fcf6a',h:120},
   electrico:{n:'Eléctrico',c:'#ffd93b',h:50}, sombra:{n:'Sombra',c:'#8a5cc2',h:270}, dragon:{n:'Dragón',c:'#4f6bff',h:230}
@@ -444,14 +446,16 @@ function musicTick(){      // cada fotograma: pausa las pistas ya apagadas y sua
 }
 
 /* ---------- 5. ESTADO ---------- */
-const cv = $('#cv'), ctx = cv.getContext('2d');
+const cv = $('#cv'); let ctx = cv.getContext('2d');        // ctx es «let»: el fondo del menú lo cambia un momento para pintar el mapa en un lienzo aparte
 let W = 0, H = 0, Z = 1;
+let menuBg = null;                                          // fondo animado del menú (null en partida o sin construir)
 function resize(){
   const d = Math.min(devicePixelRatio||1, 2);
   W = innerWidth; H = innerHeight;
   cv.width = W*d; cv.height = H*d;
   Z = clamp(H/560, 0.8, 2) * d;
   ctx.imageSmoothingEnabled = false;
+  menuBg = null;                                            // el fondo del menú depende del tamaño de pantalla: se reconstruye
 }
 addEventListener('resize', resize); resize();
 
@@ -1599,6 +1603,89 @@ cv.addEventListener('pointermove', e => { if(touch){ touch.x=e.clientX; touch.y=
 const endTouch = () => { touch = null; };
 cv.addEventListener('pointerup', endTouch); cv.addEventListener('pointercancel', endTouch);
 
+/* ---------- 8b. FONDO ANIMADO DEL MENÚ ---------- */
+// En el menú se ve un mapa de fondo con criaturas moviéndose por RUTAS FIJAS (curvas deterministas: sin IA, sin colisiones, sin apariciones)
+// para gastar poco: el mapa se pinta UNA vez en un lienzo aparte y luego sólo se desplaza; se repintan ~20 sprites; máximo MENU_FPS fotogramas
+// por segundo; se queda quieto si hay un panel abierto encima o si el sistema pide menos movimiento; se libera al empezar la partida.
+// El compañero y su cola de hostiles recorren un anillo grande alrededor de la caja del menú para que la acción se vea por los márgenes.
+const MENU_FPS = 30, MENU_MAP_SECS = 16, MENU_FADE = 1.2;
+let menuReduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+function withCtx(c, f){ const old = ctx; ctx = c; try{ f(); } finally { ctx = old; } }
+// rutas: cada una devuelve una función t → [x, y]
+const RUTA = {
+  circulo:  (c, r, w, ph) => t => [c.x + r.x*Math.cos(w*t + ph), c.y + r.y*Math.sin(w*t + ph)],
+  ocho:     (c, r, w, ph) => t => [c.x + r.x*Math.sin(w*t + ph), c.y + r.y*0.6*Math.sin(2*w*t + 2*ph)],
+  vaiven:   (a, b, w, ph) => t => { const k = 0.5 - 0.5*Math.cos(w*t + ph); return [a.x + (b.x-a.x)*k, a.y + (b.y-a.y)*k]; },
+  deambula: (c, r, w, ph) => t => [c.x + r.x*(Math.sin(w*t + ph) + 0.35*Math.sin(2.3*w*t + ph*1.7)), c.y + r.y*(Math.cos(0.8*w*t + ph) + 0.3*Math.sin(1.9*w*t + ph))],
+};
+function menuMapa(idx, w, h){                                // pinta el mapa (suelo y obstáculos del bioma) una sola vez en un lienzo aparte
+  const mp = MAPS[idx], bio = BIOME[mp.type], R = mulberry(idx*7919 + 31);
+  const off = document.createElement('canvas'); off.width = w; off.height = h; const c = off.getContext('2d'); c.imageSmoothingEnabled = false;
+  const T = 48;
+  for(let ty=0; ty<=h/T; ty++) for(let tx=0; tx<=w/T; tx++){ const hh = bgTile(tx, ty);
+    c.fillStyle = ((tx+ty)&1) ? mp.a : mp.b; c.fillRect(tx*T, ty*T, T, T);
+    if(hh%7===0){ c.fillStyle = mp.d1; c.fillRect(tx*T + (hh>>3)%36, ty*T + (hh>>7)%36, 4, 4); }
+    if(hh%23===0){ c.fillStyle = mp.d2; c.fillRect(tx*T + (hh>>5)%36, ty*T + (hh>>9)%36, 3, 3); } }
+  const objs = [], poner = (k, n, rmin, rmax) => { for(let i=0;i<n;i++) objs.push({k, x:R()*w, y:R()*h, r:rmin + R()*(rmax-rmin), v:R(), hp:OBS_HP.piedra, flash:0, prog:0}); };
+  poner('liquido', 2, 60, 100); poner('hierba', 7, 28, 50); poner('montana', 4, 40, 58); poner('arbol', 12, 13, 13); poner('piedra', 9, 12, 16); poner('cofre', 3, 13, 13);
+  const orden = {liquido:0, hierba:1}; objs.sort((a,b) => ((orden[a.k] ?? 2) - (orden[b.k] ?? 2)) || a.y - b.y);
+  withCtx(c, () => { for(const o of objs){
+    if(o.k==='liquido') drawLiquid(o, bio, 0); else if(o.k==='hierba') drawGrass(o, bio, 0); else if(o.k==='montana') drawMountain(o, bio);
+    else if(o.k==='arbol') drawTree(o, bio, 0); else if(o.k==='piedra') drawRock(o, bio); else drawChest(o, false, 0, null); } });
+  return off;
+}
+function menuEscena(idx){                                    // mapa + actores con sus rutas (todo determinista por mapa)
+  const vw = cv.width/Z, vh = cv.height/Z, w = Math.ceil(vw*1.5), h = Math.ceil(vh*1.5), mp = MAPS[idx], R = mulberry(idx*104729 + 7);
+  const sc = {idx, w, h, off:menuMapa(idx, w, h), actores:[], orbes:[]};
+  const sp = SPECIES.find(x => x.id === SAVE.sel) || SPECIES[0], sprite = (seed, hue, N, sz) => ({spr:makeSprite(seed, hue, false, N, 3), sz});
+  const lider = (x, y, ruta, f, spr, sz, tipo) => { const a = {f, lag:0, spr, sz, tipo, lider:true}; sc.actores.push(a); return a; };
+  const persigue = (a, n, mapaT) => { for(let i=0;i<n;i++){ const et = ENEMY_TYPES[(i + idx + mapaT) % ENEMY_TYPES.length];
+    sc.actores.push({f:a.f, lag:0.9 + i*0.45, wob:i*1.7, spr:makeSprite(et.seed, et.hue, false, 10, 3), sz:et.r*2.5, tipo:et.type, sigue:a}); } };
+  const c0 = {x:w/2, y:h/2};
+  const heroe = lider(0, 0, 'deambula', RUTA.circulo(c0, {x:w*0.29, y:h*0.31}, 0.38, idx), spriteOf(sp, !!(SAVE.owned[sp.id] && SAVE.owned[sp.id].shiny)), 34, sp.type); heroe.esHeroe = true;
+  persigue(heroe, 7, 0);
+  const otros = SPECIES.filter(x => x.id !== sp.id && SAVE.owned[x.id]);
+  if(otros.length){ const o = otros[idx % otros.length]; const a2 = lider(0, 0, 'ocho', RUTA.ocho(c0, {x:w*0.31, y:h*0.3}, 0.46, idx*0.9), spriteOf(o, !!SAVE.owned[o.id].shiny), 34, o.type); persigue(a2, 3, 2); }
+  const lt = mp.type; sc.actores.push({f:RUTA.circulo({x:w*0.5, y:h*0.5}, {x:w*0.36, y:h*0.34}, 0.14, idx*1.3), lag:0, spr:makeSprite(LEG[lt].seed, TYPES[lt].h, false, 12, 3), sz:34*2.5, tipo:lt, grande:true});
+  if(SAVE.dex.c.mega && SAVE.dex.c.mega.seen) sc.actores.push({f:RUTA.vaiven({x:-120, y:h*0.2}, {x:w + 120, y:h*0.3}, 0.11, 0), lag:0, spr:makeSprite(99, 300, false, 14, 3), sz:MEGA.r*2.5, tipo:'primordio', grande:true});
+  sc.heroe = heroe; sc.primero = sc.actores.find(a => a.sigue === heroe);
+  return sc;
+}
+function drawMenuBg(now){
+  if(!menuBg) menuBg = {scene:null, idx:Math.floor(Math.random()*MAPS.length), t0:now/1000, last:-1e9, frames:0, builds:0, vig:null, vigKey:''};
+  const m = menuBg, t = now/1000;
+  if(m.scene && (menuReduce ? m.congelado : false)) return;
+  if(m.scene && document.querySelector('#ovPanel').classList.contains('on')) return;       // un panel encima: se queda quieto
+  if(m.scene && now - m.last < 1000/MENU_FPS - 2) return;                                    // limitador de fotogramas
+  m.last = now;
+  let el = t - m.t0;
+  if(!m.scene || (!menuReduce && el >= MENU_MAP_SECS)){                                      // cambio de mapa: ocurre con la pantalla a negro
+    if(m.scene) m.idx = (m.idx + 1) % MAPS.length; m.scene = menuEscena(m.idx); m.builds++; m.t0 = t; el = 0; }
+  if(menuReduce){ el = 4; m.congelado = true; }                                              // sin animación: una sola imagen fija
+  const sc = m.scene, vw = cv.width/Z, vh = cv.height/Z;
+  ctx.setTransform(1,0,0,1,0,0); ctx.fillStyle = '#0c0814'; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.setTransform(Z,0,0,Z,0,0); ctx.imageSmoothingEnabled = false;
+  const cx = (sc.w - vw)*(0.5 + 0.45*Math.sin(el*0.13)), cy = (sc.h - vh)*(0.5 + 0.45*Math.cos(el*0.1));      // panorámica lenta
+  ctx.translate(-Math.round(cx), -Math.round(cy)); ctx.drawImage(sc.off, 0, 0);
+  const pos = a => { const q = a.f(el - a.lag), q2 = a.f(el - a.lag + 0.1); let x = q[0], y = q[1]; if(a.wob !== undefined){ x += Math.sin(el*1.3 + a.wob)*10; y += Math.cos(el*1.1 + a.wob)*8; } return {x, y, dir:q2[0] >= q[0] ? 1 : -1}; };
+  const lista = sc.actores.map(a => ({a, p:pos(a)})); lista.sort((u, v) => u.p.y - v.p.y);
+  for(const {a, p} of lista){ if(p.x < -200 || p.x > sc.w + 200) continue;
+    ctx.save(); ctx.translate(p.x, p.y); if(p.dir < 0) ctx.scale(-1, 1);
+    ctx.globalAlpha = 0.3; ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(0, a.sz*0.45, a.sz*0.4, a.sz*0.14, 0, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
+    ctx.translate(0, Math.sin(el*8 + (a.lag||0)*3)*1.2); ctx.drawImage(a.spr, -a.sz/2, -a.sz/2, a.sz, a.sz); ctx.restore(); }
+  if(sc.primero){ const h = pos(sc.heroe), c1 = pos(sc.primero), col = TYPES[sc.heroe.tipo] ? TYPES[sc.heroe.tipo].c : '#fff';     // orbes del héroe hacia su primer perseguidor
+    for(let k=0;k<2;k++){ const ph = (el*0.9 + k*0.5) % 1, ox = h.x + (c1.x-h.x)*ph, oy = h.y + (c1.y-h.y)*ph;
+      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(ox, oy, 5, 0, 7); ctx.fill(); ctx.fillStyle = '#fff8'; ctx.beginPath(); ctx.arc(ox-1.5, oy-1.5, 2, 0, 7); ctx.fill(); } }
+  ctx.setTransform(1,0,0,1,0,0);
+  const vk = cv.width + 'x' + cv.height;                                                      // viñeteado (se crea una vez por tamaño)
+  if(m.vigKey !== vk){ const g2 = ctx.createRadialGradient(cv.width/2, cv.height/2, Math.min(cv.width, cv.height)*0.3, cv.width/2, cv.height/2, Math.max(cv.width, cv.height)*0.75);
+    g2.addColorStop(0, 'rgba(8,6,16,0)'); g2.addColorStop(1, 'rgba(8,6,16,0.55)'); m.vig = g2; m.vigKey = vk; }
+  ctx.fillStyle = m.vig; ctx.fillRect(0, 0, cv.width, cv.height);
+  const mitad = MENU_FADE/2, negro = el < mitad ? 1 - el/mitad : (el > MENU_MAP_SECS - mitad ? (el - (MENU_MAP_SECS - mitad))/mitad : 0);   // fundido a negro entre mapas
+  if(negro > 0 && !menuReduce){ ctx.fillStyle = `rgba(12,8,20,${clamp(negro, 0, 1)})`; ctx.fillRect(0, 0, cv.width, cv.height); }
+  m.frames++;
+}
+
 /* ---------- 9. BUCLE PRINCIPAL ---------- */
 let last = performance.now();
 const errVistos = new Set();
@@ -1609,8 +1696,8 @@ function seguro(f){                                         // un error del jueg
 function frame(now){
   const dt = Math.min(0.05, (now-last)/1000); last = now;
   seguro(musicTick);
-  if(G){ if(!G.paused && !G.over) seguro(() => update(dt)); seguro(draw); }
-  else { ctx.setTransform(1,0,0,1,0,0); ctx.fillStyle='#1b1528'; ctx.fillRect(0,0,cv.width,cv.height); }
+  if(G){ menuBg = null; if(!G.paused && !G.over) seguro(() => update(dt)); seguro(draw); }       // en partida se libera el fondo del menú
+  else seguro(() => drawMenuBg(now));
   requestAnimationFrame(frame);
 }
 refreshMenu();

@@ -14,6 +14,13 @@ Regla: al **finalizar cada tarea** se añade una entrada arriba (la más recient
 
 ## Entradas
 
+### 2026-10-22 — v0.11.0: fondo animado en el menú
+- **Qué cambió:** mapa de bioma de fondo en el menú con criaturas por rutas fijas (compañero + cola de hostiles que lo persiguen y orbes, 2.º compañero, legendario del mapa, Titán si se ha visto); rota cada 16 s con fundido a negro; menú translúcido.
+- **Ficheros:** `index.html` (sección 8b: `drawMenuBg`, `menuEscena`, `menuMapa`, `RUTA`, `withCtx`; `ctx` pasa a `let`; `frame`, `resize`, CSS `#ovMenu`), `scripts/smoke.js`, `scripts/capturas.py/.sh`, `README.md`, `CHANGELOG.md`, `CLAUDE.md`
+- **Decisiones:** rutas deterministas en vez de IA y mapa precalculado para gastar poco (≈30 fps, 2-3 ms/fotograma sin GPU); anillo alrededor de la caja del menú porque el centro queda tapado; quieto con panel abierto o `prefers-reduced-motion`; memoria liberada en partida.
+- **Hallazgo:** el Docker de esta sesión no veía el `/tmp` del shell (carpetas vacías montadas → «SAVE is not defined»); `capturas.sh` usa `~/.cache`.
+- **Pendiente:** el usuario lo prueba en la versión de prueba (sobre todo en móvil y en un equipo flojo); sincronizar y commitear cuando lo ordene.
+
 ### 2026-10-21 — v0.10.2: el Titán congelaba la pantalla
 - **Qué cambió:** el primer descanso del Titán (≈10 s tras despertar) lanzaba `TypeError` al leer `TYPES['primordio']` y mataba el bucle principal; ahora el descanso no lleva tipo, `startBossStep` ignora tipos inexistentes y `frame` usa `seguro(...)` para no morir por un error.
 - **Ficheros:** `index.html` (`startBossStep`, `megaPick`, `frame`, `seguro`), `scripts/smoke.js`, `README.md`, `CHANGELOG.md`, `CLAUDE.md`

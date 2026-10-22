@@ -2,6 +2,13 @@
 
 Versionado: `0.x.0` por cada mejora (la 0.1.0 es la primera versión); `0.x.y` para correcciones. La versión que muestra el juego (`VERSION` en `index.html`) debe coincidir con el primer encabezado de este fichero.
 
+## v0.11.0 — 2026-10-22 · Fondo animado en el menú
+- **Mapa vivo de fondo:** mientras estás en el menú se ve un mapa con sus obstáculos y criaturas moviéndose. Rota por los 6 biomas cada 16 s con un fundido a negro (el siguiente mapa se construye cuando la pantalla está a oscuras, así no se nota el tirón). El menú es translúcido (`#ovMenu`, fondo 0,30 y caja 0,92).
+- **Rutas fijas en vez de IA** (`RUTA`: círculo, ocho, vaivén, deambular): tu compañero recorre un anillo grande alrededor de la caja del menú con una cola de 7 hostiles que lo persigue (misma ruta con retardo y un pequeño bamboleo) y le dispara orbes; si tienes más compañeros, uno se mueve en un ocho con 3 perseguidores; el legendario del tipo del mapa da vueltas por el borde; y si ya has visto al Titán, lo cruza despacio. Sin colisiones, sin apariciones, sin lógica de combate.
+- **Pensado para gastar poco:** el mapa (suelo y obstáculos) se pinta **una sola vez** en un lienzo aparte y luego sólo se desplaza con una panorámica lenta; se repintan ~20 sprites; límite de 30 fotogramas/s (`MENU_FPS`, con 2 ms de tolerancia); se queda quieto si hay un panel abierto encima o si el sistema pide menos movimiento (`prefers-reduced-motion`: una imagen fija); se libera la memoria al empezar la partida y se recrea al volver. Medido en Chromium sin GPU: 29,9 fotogramas/s y ~2-3 ms por fotograma.
+- `scripts/smoke.js`: una sola construcción por mapa, limitador, cambio a los 16 s, congelado con panel abierto o con menos movimiento, liberación al jugar, rutas finitas, deterministas y dentro del mapa, legendario del mapa presente, Titán sólo si se ha visto, y menú translúcido.
+- `scripts/capturas.sh` usa carpetas bajo `~/.cache` (el demonio de Docker no veía el `/tmp` privado del shell y montaba carpetas vacías) y deja las imágenes en `capturas/`; imprime los fotogramas/s y el coste del menú.
+
 ## v0.10.2 — 2026-10-21 · Arreglo: el Titán congelaba la pantalla
 - **Causa:** unos 10 s después de despertar, al Titán le tocaba su primer **descanso**. Ese paso llevaba como tipo el del propio Titán (`primordio`), que no existe en `TYPES`, y `startBossStep` lanzaba un `TypeError` al leer su color. Como el error saltaba dentro del bucle principal, el juego dejaba de pedir fotogramas y la pantalla se quedaba congelada (afectaba a la v0.10.0 y a la v0.10.1, también publicadas).
 - **Arreglo:** el descanso ya no lleva tipo y conserva el del último ataque (siempre un tipo real); `startBossStep` ignora tipos inexistentes.

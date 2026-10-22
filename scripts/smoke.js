@@ -403,6 +403,23 @@ src += `
     newRun(); update = () => { throw new Error('prueba'); }; frame(100); frame(200); frame(300); update = updPrev; console.error = errPrev; requestAnimationFrame = rafPrev;
     eq(pidos, 3, 'el bucle sigue pidiendo fotogramas aunque update falle'); eq(anotados, 1, 'el mismo error se anota una sola vez'); }
   console.log('TITAN NATURAL Y BUCLE OK');
+  // --- fondo animado del menu: barato (mapa pintado una vez, rutas fijas, limitador de fotogramas, quieto con panel abierto) ---
+  { getChunk = () => []; newRun(); G = null; menuBg = null; menuReduce = false; const panel = document.querySelector('#ovPanel'); const contPrev = panel.classList.contains;
+    drawMenuBg(1000); eq(menuBg.builds, 1, 'se construye una escena'); eq(menuBg.frames, 1, 'primer fotograma'); const sc0 = menuBg.scene; if (!(sc0.actores.length >= 9 && sc0.actores.length <= 30)) throw new Error('FALLO numero de actores: ' + sc0.actores.length); if (!(sc0.w > cv.width / Z && sc0.h > cv.height / Z)) throw new Error('FALLO el mapa debe ser mayor que la pantalla para la panoramica');
+    drawMenuBg(1005); drawMenuBg(1010); drawMenuBg(1020); eq(menuBg.frames, 1, 'el limitador impide repintar antes de tiempo'); drawMenuBg(1035); eq(menuBg.frames, 2, 'repinta pasado el intervalo');
+    for (let now = 1100; now < 1000 + MENU_MAP_SECS * 1000 - 100; now += 16) drawMenuBg(now);                      // ~60 fps de peticion durante casi todo el mapa
+    const seg = (MENU_MAP_SECS * 1000 - 200) / 1000; if (!(menuBg.frames / seg <= 1000 / (1000 / MENU_FPS - 2) + 0.2)) throw new Error('FALLO se dibuja por encima del limite: ' + (menuBg.frames / seg) + ' fps'); if (!(menuBg.frames / seg >= MENU_FPS * 0.8)) throw new Error('FALLO se dibuja muy por debajo: ' + (menuBg.frames / seg)); eq(menuBg.builds, 1, 'el mapa no se reconstruye mientras dura');
+    const idx0 = menuBg.idx; for (let now = 1000 + MENU_MAP_SECS * 1000 - 100; now < 1000 + MENU_MAP_SECS * 1000 + 200; now += 16) drawMenuBg(now); eq(menuBg.builds, 2, 'a los 16 s se construye el siguiente mapa'); eq(menuBg.idx, (idx0 + 1) % MAPS.length, 'pasa al siguiente mapa');
+    const f0 = menuBg.frames; panel.classList.contains = () => true; for (let now = 30000; now < 31000; now += 16) drawMenuBg(now); eq(menuBg.frames, f0, 'con un panel abierto no se repinta'); panel.classList.contains = contPrev;
+    menuBg = null; menuReduce = true; for (let now = 40000; now < 45000; now += 16) drawMenuBg(now); eq(menuBg.frames, 1, 'con menos movimiento sólo hay una imagen fija'); eq(menuBg.builds, 1, 'y no cambia de mapa'); menuReduce = false;
+    menuBg = null; drawMenuBg(50000); newRun(); frame(50100); eq(menuBg === null ? 1 : 0, 1, 'al empezar la partida se libera el fondo'); G = null; frame(50200); eq(menuBg !== null ? 1 : 0, 1, 'al volver al menu se recrea'); }
+  { newRun(); G = null; for (let idx = 0; idx < MAPS.length; idx++) { const a = menuEscena(idx), b2 = menuEscena(idx);
+      for (let t = 0; t <= 60; t += 0.5) a.actores.forEach((ac, i) => { const p = ac.f(t - ac.lag), q = b2.actores[i].f(t - b2.actores[i].lag); if (!(isFinite(p[0]) && isFinite(p[1]))) throw new Error('FALLO ruta no finita en mapa ' + idx); if (p[0] !== q[0] || p[1] !== q[1]) throw new Error('FALLO ruta no determinista en mapa ' + idx);
+        if (!ac.grande && (p[0] < -250 || p[0] > a.w + 250 || p[1] < -250 || p[1] > a.h + 250)) throw new Error('FALLO un actor sale del mapa: ' + idx + ' t=' + t + ' ' + p); });
+      if (!a.actores.some(x => x.grande && x.tipo === MAPS[idx].type)) throw new Error('FALLO falta el legendario del mapa ' + idx); }
+    SAVE.dex.c.mega = {seen:true, kills:0}; if (!menuEscena(0).actores.some(x => x.tipo === 'primordio')) throw new Error('FALLO el Titan visto debe cruzar el fondo'); SAVE.dex.c.mega = {seen:false, kills:0}; if (menuEscena(0).actores.some(x => x.tipo === 'primordio')) throw new Error('FALLO el Titan no visto no debe salir'); }
+  { const css = __html.match(/<style>([\\s\\S]*?)<\\/style>/)[1]; const m = css.match(/#ovMenu\\s*\\{[^}]*rgba\\(\\s*\\d+\\s*,\\s*\\d+\\s*,\\d+\\s*,\\s*([0-9.]+)\\s*\\)/); if (!m || !(parseFloat(m[1]) <= 0.5)) throw new Error('FALLO el menu debe ser translucido para ver el fondo'); }
+  console.log('FONDO DEL MENU OK');
   // --- version coherente con la documentacion ---
   const top = (__changelog.match(/^## v(\\d+\\.\\d+\\.\\d+)/m) || [])[1]; if (top !== VERSION) throw new Error('FALLO version: index.html=' + VERSION + ' CHANGELOG=' + top);
   if (!__readme.includes('v' + VERSION)) throw new Error('FALLO el README no menciona la version v' + VERSION);

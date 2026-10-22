@@ -10,7 +10,8 @@ SALIDA="$(realpath -m "${1:-$RAIZ/capturas}")"
 IMG="${PLAYWRIGHT_IMG:-mcr.microsoft.com/playwright/python:v1.64.0-noble}"
 VER="${IMG##*:v}"; VER="${VER%%-*}"
 command -v docker >/dev/null || { echo "Hace falta Docker."; exit 1; }
-TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+CACHE="${XDG_CACHE_HOME:-$HOME/.cache}"; mkdir -p "$CACHE"
+TMP="$(mktemp -d -p "$CACHE" capturas.XXXXXX)"; trap 'rm -rf "$TMP"' EXIT          # bajo el home: el demonio de Docker no ve el /tmp privado de algunos shells
 cp "$RAIZ/index.html" "$TMP/"; [ -d "$RAIZ/music" ] && cp -r "$RAIZ/music" "$TMP/" || true
 mkdir -p "$SALIDA"
 docker run --rm --shm-size=1g --user "$(id -u):$(id -g)" -e HOME=/tmp \

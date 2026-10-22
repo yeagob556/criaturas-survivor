@@ -19,6 +19,12 @@ with sync_playwright() as p:
     pg.goto(BASE); pg.wait_for_timeout(800)
     pg.evaluate("SAVE.coins = 5000; for (const s of SPECIES) SAVE.owned[s.id] = SAVE.owned[s.id] || {shiny: s.id === 'dracolin'}; ensureDex(SAVE); persist(); refreshMenu()")
     pg.screenshot(path=OUT + '01-menu.png')
+    # fondo animado del menú: dos imágenes más tarde (otra pose y otro mapa) y su coste
+    pg.wait_for_timeout(7000); pg.screenshot(path=OUT + '01b-menu-fondo-8s.png')
+    pg.wait_for_timeout(9000); pg.screenshot(path=OUT + '01c-menu-fondo-17s.png')
+    fps_menu = pg.evaluate("() => new Promise(res => { const f0 = menuBg.frames, t0 = performance.now(); setTimeout(() => res((menuBg.frames - f0) / ((performance.now() - t0) / 1000)), 3000); })")
+    ms_menu = pg.evaluate("() => { const m = menuBg, t0 = performance.now(); let n = 0; for (let t = m.last + 100; n < 300; t += 40, n++) drawMenuBg(t); return (performance.now() - t0) / 300; }")
+    print('MENU: fotogramas dibujados por segundo:', round(fps_menu, 1), '| ms por fotograma (sin GPU):', round(ms_menu, 2))
     for nombre, boton in [('companeros', '#bComp'), ('mejoras', '#bUp'), ('criaturario', '#bDex'), ('guia', '#bGuide'), ('stats', '#bStats')]:
         pg.click(boton); pg.wait_for_timeout(400); pg.screenshot(path=OUT + f'02-{nombre}.png'); pg.click('#pBack'); pg.wait_for_timeout(150)
     pg.click('#bDex'); pg.wait_for_timeout(300); pg.click('button[data-t="m"]'); pg.wait_for_timeout(300); pg.screenshot(path=OUT + '02-criaturario-mapas.png'); pg.click('#pBack')
