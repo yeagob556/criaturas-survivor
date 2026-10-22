@@ -2,6 +2,12 @@
 
 Versionado: `0.x.0` por cada mejora (la 0.1.0 es la primera versión); `0.x.y` para correcciones. La versión que muestra el juego (`VERSION` en `index.html`) debe coincidir con el primer encabezado de este fichero.
 
+## v0.13.0 — 2026-10-22 · El Titán despeja el campo
+- **Al despertar Primordio, los hostiles normales se desvanecen** (se difuminan en 0,9 s, `MEGA.clear`; sin botín ni bajas, y sin atacar, moverse ni recibir daño mientras se apagan) y se borran sus disparos. **Se quedan** los legendarios que ya había (los de cada 4 minutos) y los que invoque el Titán; el combate pasa a ser contra jefes.
+- **Mientras el Titán vive no aparecen hostiles normales nuevos** (la aparición se detiene y su acumulador se vacía) y tampoco sale la «marea de monstruos» (si había una en curso, termina). Los otros eventos (lluvia de agua y de fuego) siguen. Al caer el Titán, la aparición normal vuelve.
+- Los que se desvanecen no se pueden apuntar (`nearest`), ni los dañan los ataques ni los proyectiles (`hurt`, bucle de proyectiles) y se dibujan semitransparentes.
+- `scripts/smoke.js`: todos los normales marcados y los jefes intactos, sin daño mientras se apagan (ni siquiera un proyectil), sin bajas ni botín, que desaparezcan, sin aparición normal durante 5 s con el Titán vivo, que no salga marea en 300 intentos, y que la aparición vuelva al caer. `scripts/capturas.py`: dos imágenes de la limpieza.
+
 ## v0.12.0 — 2026-10-22 · Versión portable y repositorio listo para GitHub
 - **Versión portable** (`scripts/empaquetar.sh` → `dist/`, fuera de Git): carpeta **completa** (juego + música, ~17 MB) y carpeta **ligera** (sólo `index.html`, ~150 KB), cada una con su `.zip`, con `LEEME.txt`, `CREDITOS.txt` (declara que la música es de IA), `Jugar.bat` (Windows), `jugar.sh` (Linux/macOS) y `jugar-con-servidor.sh`. No necesita instalar nada ni conexión: se abre `index.html` con el navegador. El empaquetador se niega a trabajar si `VERSION` no coincide con el CHANGELOG y audita el paquete.
 - **Música desde `file://`:** al abrir el juego con doble clic, el navegador silencia el audio que pasa por WebAudio (CORS). Nuevo **modo directo** (`MUSIC_DIRECT`, se activa solo con `file://`): volumen del propio `<audio>` con los fundidos, el bucle suave y la bajada al pausar calculados a mano. Con servidor sigue el camino WebAudio de siempre.

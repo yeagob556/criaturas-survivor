@@ -14,6 +14,12 @@ Regla: al **finalizar cada tarea** se añade una entrada arriba (la más recient
 
 ## Entradas
 
+### 2026-10-22 — v0.13.0: el Titán despeja el campo
+- **Qué cambió:** al despertar el Titán los hostiles normales se desvanecen (sin botín ni bajas) y no aparecen más ni la marea de monstruos mientras viva; quedan los legendarios y los invocados; al caer, vuelve la aparición.
+- **Ficheros:** `index.html` (`spawnMega`, `spawn`, `startEvent`, `update`, `hurt`, `nearest`, proyectiles, dibujo), `scripts/smoke.js`, `scripts/capturas.py`, `README.md`, `CHANGELOG.md`, `CLAUDE.md`
+- **Decisiones:** desvanecimiento de 0,9 s (en vez de borrarlos de golpe) para que no parezca un fallo; sin botín para que no regale experiencia; los demás eventos siguen (la marea no, porque no tendría efecto).
+- **Pendiente:** el usuario lo prueba en la versión de prueba; sincronizar demo y pública y commitear (y subir al repo público) sólo cuando lo ordene.
+
 ### 2026-10-22 — v0.12.0: versión portable y repositorio listo para GitHub
 - **Qué cambió:** paquetes portables (`empaquetar.sh`: completa con música ~16 MB y ligera ~160 KB, con .zip, LEEME, créditos y lanzadores); música en modo directo para `file://` (WebAudio queda mudo allí; medido); exportar/importar partida validado y saneado; `probar-portable.sh` (Chromium real por `file://`: carga, música, exportar/importar); `publicar-github.sh` (crea el repo PRIVADO, simula por defecto); CI (`smoke.yml`); LICENSE (todos los derechos reservados); capturas y secciones nuevas en el README.
 - **Ficheros:** `index.html` (4b música directa, 2 exportar/importar, Estadísticas), `scripts/empaquetar.sh`, `scripts/probar-portable.sh`, `scripts/probar_portable.py`, `scripts/publicar-github.sh`, `scripts/audit-secrets.sh` (admite carpeta), `.github/workflows/smoke.yml`, `LICENSE`, `docs/capturas/`, `.gitignore`, `README.md`, `CHANGELOG.md`, `CLAUDE.md`, `scripts/smoke.js`

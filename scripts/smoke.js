@@ -442,6 +442,24 @@ src += `
     if (Object.keys(q.save.owned).join() !== 'brasito') throw new Error('FALLO ids inventados en owned: ' + Object.keys(q.save.owned)); eq(q.save.stats.runs, 0, 'estadistica no numerica a 0'); eq(q.save.stats.kills, 1e12, 'estadistica acotada'); if ('falso' in q.save.dex.c || 'nada' in q.save.dex.m) throw new Error('FALLO ids inventados en el criaturario');
     eq(q.save.dex.c.brasito.kills, 0, 'bajas negativas a 0'); eq(q.save.dex.m.lago ? 1 : 0, 1, 'mapa valido conservado'); eq(q.save.sound ? 1 : 0, 0, 'sound:0 cuenta como apagado'); if (({}).x !== undefined) throw new Error('FALLO contaminacion de prototipos'); SAVE = defaultSave(); }
   console.log('PORTABLE (musica directa, exportar/importar) OK');
+  // --- al despertar el Titan: los hostiles normales se desvanecen; quedan los legendarios y los invocados; sin aparicion normal mientras vive ---
+  { newRun(); G.moves = []; getChunk = () => []; G.evT = 1e9; G.nextBoss = 1e9; G.px = G.py = 0; sombraMap(); G.hp = G.maxhp = 100; G.enemies = [];
+    const normales = []; for (let i = 0; i < 8; i++) { const e = mk(['planta', 'fuego', 'agua', 'sombra'][i % 4], 60 + i * 30, 0, {hp:50, maxhp:50, spd:0, dmg:50}); normales.push(e); G.enemies.push(e); }
+    const cercano = mk('planta', 5, 0, {hp:50, maxhp:50, spd:0, dmg:50}); G.enemies.push(cercano); normales.push(cercano);
+    const legendario = spawnBoss('fuego', 400, 0, 5000); legendario.spd = 0; legendario.bs.t = -999; const invocado = spawnBoss('agua', -400, 0, 3000); invocado.minion = true; invocado.spd = 0; invocado.bs.t = -999;
+    G.ebul = [{x:100, y:0, vx:0, vy:0, r:5, dmg:5, life:5, type:'planta'}]; G.ev = {kind:'marea', t:1, dur:25, mt:1}; G.t = MEGA.first; G.spawnAcc = 3; const kills0 = G.kills, gems0 = G.gems.length;
+    const m = spawnMega(); m.x = 900; m.y = 0; m.bs.t = -999;
+    eq(normales.every(e => e.vanish === MEGA.clear) ? 1 : 0, 1, 'todos los normales se desvanecen'); eq(legendario.vanish === undefined && invocado.vanish === undefined ? 1 : 0, 1, 'los jefes se quedan'); eq(m.vanish === undefined ? 1 : 0, 1, 'el Titan no se desvanece');
+    eq(G.ebul.length, 0, 'se borran los disparos'); eq(G.ev ? 1 : 0, 0, 'se acaba la marea de monstruos'); eq(G.spawnAcc, 0, 'se vacia el acumulador de aparicion');
+    update(1 / 60); eq(G.hp, 100, 'el hostil pegado a ti no hace daño mientras se desvanece'); hurt(cercano, 1000, 'fuego'); eq(cercano.hp, 50, 'no recibe daño'); { const n = nearest(0, 0); if (n && n.vanish !== undefined) throw new Error('FALLO se apunta a un hostil que se desvanece'); }
+    G.proj.push({x:5, y:0, vx:0, vy:0, dmg:100, r:8, pierce:1, life:1, col:'#fff', hit:[], mt:'fuego'}); update(1 / 60); eq(cercano.hp, 50, 'ni siquiera un proyectil le hace daño'); draw();
+    for (let i = 0; i < 70; i++) { G.hp = G.maxhp; update(1 / 60); }
+    eq(G.enemies.some(e => normales.includes(e)) ? 1 : 0, 0, 'desaparecen todos los normales'); eq(G.kills, kills0, 'no cuentan como bajas'); eq(G.gems.length, gems0, 'no sueltan botin');
+    eq(G.enemies.includes(legendario) && G.enemies.includes(invocado) && G.enemies.includes(m) ? 1 : 0, 1, 'quedan el legendario, el invocado y el Titan');
+    const antes = G.enemies.filter(e => !e.boss).length; G.t = 1300; for (let i = 0; i < 60 * 5; i++) { G.hp = G.maxhp; update(1 / 60); } eq(G.enemies.filter(e => !e.boss).length, antes, 'no aparecen hostiles normales mientras vive el Titan');
+    for (let i = 0; i < 300; i++) { G.ev = null; startEvent(); if (G.ev.kind === 'marea') throw new Error('FALLO sale una marea con el Titan vivo'); } G.ev = null;
+    kill(m); G.spawnAcc = 0; G.enemies = []; G.t = 1400; for (let i = 0; i < 60 * 3; i++) { G.hp = G.maxhp; update(1 / 60); } if (!(G.enemies.filter(e => !e.boss).length > 0)) throw new Error('FALLO la aparicion normal no vuelve tras caer el Titan'); }
+  console.log('LIMPIEZA AL DESPERTAR EL TITAN OK');
   // --- version coherente con la documentacion ---
   const top = (__changelog.match(/^## v(\\d+\\.\\d+\\.\\d+)/m) || [])[1]; if (top !== VERSION) throw new Error('FALLO version: index.html=' + VERSION + ' CHANGELOG=' + top);
   if (!__readme.includes('v' + VERSION)) throw new Error('FALLO el README no menciona la version v' + VERSION);

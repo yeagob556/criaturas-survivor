@@ -1,6 +1,6 @@
 # Criaturas Survivor
 
-**Versión actual: v0.12.0** (2026-10-22). La versión se ve en el menú, en la Guía y en la esquina inferior derecha durante la partida.
+**Versión actual: v0.13.0** (2026-10-22). La versión se ve en el menú, en la Guía y en la esquina inferior derecha durante la partida.
 
 Juego de supervivencia tipo *Survivor* para el navegador: eliges un compañero, esquivas hordas, subes de nivel y mejoras tus ataques. Todo el juego es **un solo `index.html`** (canvas + JavaScript, sin dependencias ni servidor); la música de fondo son seis ficheros de audio opcionales. Se puede **llevar en una carpeta** y jugar con doble clic (ver [Versión portable](#versión-portable)). Proyecto de aprendizaje.
 
@@ -42,7 +42,7 @@ Tres formas, de la más sencilla a la más completa:
 | Obstáculos | Montañas y árboles (sólidos, indestructibles), piedras (sólidas, se rompen), hierba alta (reduce la visión, se rompe; aguanta la mitad que una piedra) y líquidos (dañan o ralentizan salvo al tipo del mapa); cambian de aspecto y efecto con cada mapa | `BIOME`, `getChunk()` |
 | Hostiles | 6 tipos que aparecen por tiempo. Los violetas (Sombra) tienen la mitad de alcance. Chispamurci, Magmaroca y Dracoaleta **embisten** con el recorrido marcado en el suelo (esquivable) | `ENEMY_TYPES`, `REACH`, `enemyDash()` |
 | Jefes | Un legendario tipado cada 4 minutos que repite un **guion fijo de 5 ataques** de su tipo, con aviso en el suelo antes de cada uno y el siguiente visible sobre su cabeza; al 30% de vida se enfurece (+20% de daño). Sus ondas y zonas dejan estados en ti | `BOSS_SCRIPT`, `BOSS_ATK`, `bossStep()` |
-| Megajefe | **Primordio, el Titán** a los 20 min (y cada 20): lento y enorme, con los ataques de los 6 tipos elegidos por tu distancia (cerca ondas y anillos; media abanicos, zonas y ráfagas; lejos embestidas, tornados y meteoros), descansa cada 3 ataques e invoca legendarios al 100/75/50/25% de vida. Tiene 10× la vida de un legendario, regenera un poco y **se adapta a tu daño**: con poco daño se impacienta (velocidad, daño y ataque suben) y con muchísimo gana armadura | `MEGA`, `MEGA_MOVES`, `megaPick()`, `spawnMega()` |
+| Megajefe | **Primordio, el Titán** a los 20 min (y cada 20): lento y enorme, con los ataques de los 6 tipos elegidos por tu distancia (cerca ondas y anillos; media abanicos, zonas y ráfagas; lejos embestidas, tornados y meteoros), descansa cada 3 ataques e invoca legendarios al 100/75/50/25% de vida. **Al despertar, los hostiles normales se desvanecen** y no aparecen más mientras viva: sólo quedan los legendarios. Tiene 10× la vida de un legendario, regenera un poco y **se adapta a tu daño**: con poco daño se impacienta (velocidad, daño y ataque suben) y con muchísimo gana armadura | `MEGA`, `MEGA_MOVES`, `megaPick()`, `spawnMega()` |
 | Aparición | Pocos hostiles al empezar y más con el tiempo (`spawnRate`, `spawnCap`) | `spawnRate()` |
 | Eventos | Cada 45-75 s: marea de monstruos (spawn ×2,5), lluvia de agua (buffs y nerfeos por tipo) o lluvia de fuego (meteoritos con aviso en el suelo) | `EVENTS`, `RAIN_FX`, `METEOR`, `updateEvents()` |
 | Cofres | Pequeños (se rompen a golpes: monedas, experiencia u objeto) y grandes (quédate cerca 6 s: botín grande y objeto garantizado) | `CHEST`, `openChest()` |
@@ -137,4 +137,4 @@ Cada subida ejecuta en GitHub Actions (`.github/workflows/smoke.yml`) la auditor
 Ver [`rules/README.md`](rules/README.md): 001 sin assets oficiales · 002 música de IA declarada y anotada · 003 versión coherente con el CHANGELOG.
 
 ## Estado y pendientes
-Jugable y en mejora continua (v0.12.0). Pendiente: probar a mano el equilibrio (sobre todo el del Titán y la rapidez de la subida de nivel), subir el repo a GitHub y añadir un monitor de disponibilidad en el homelab. Ver `memory.md`.
+Jugable y en mejora continua (v0.13.0). Pendiente: probar a mano el equilibrio (sobre todo el del Titán y la rapidez de la subida de nivel), subir el repo a GitHub y añadir un monitor de disponibilidad en el homelab. Ver `memory.md`.

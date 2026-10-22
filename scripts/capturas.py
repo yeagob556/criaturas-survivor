@@ -83,6 +83,10 @@ with sync_playwright() as p:
     pg.evaluate(mega + "m.x = G.px + 130; m.y = G.py - 30; startBossStep(m, ['pulse', 'Marea', 'agua'])"); pg.wait_for_timeout(700); pg.screenshot(path=OUT + '74-mega-onda-cerca.png')
     pg.evaluate(mega + "m.hp = m.maxhp*0.2; m.x = G.px + 330; for (const t of ['agua', 'planta']) { const x = spawnBoss(t, G.px - 220 + (t === 'planta' ? 160 : 0), G.py + 120, 3000); x.minion = true; x.disc = true; x.spd = 0; }")
     pg.wait_for_timeout(1200); pg.screenshot(path=OUT + '75-mega-furia-legendarios.png')
+    # al despertar el Titán los hostiles normales se desvanecen (a medio desvanecer y ya limpio); quedan los legendarios
+    limpia = base + "G.mega = null; G.nextMega = 1e9; G.t = 1200; for (let i = 0; i < 70; i++) { const et = ENEMY_TYPES[i % 6], a = i * 0.45, d = 120 + (i % 7) * 40; G.enemies.push({...et, x: G.px + Math.cos(a)*d, y: G.py + Math.sin(a)*d, hp: 1e6, maxhp: 1e6, kx: 0, ky: 0, flash: 0, orbT: 0, shootT: 9, ph: 0, hpBuf: 1, rBuf: 1, dcd: 9, ds: null, disc: true}); } "
+    pg.evaluate(limpia + "const lg = spawnBoss('fuego', G.px - 260, G.py - 80, 9000); lg.disc = true; lg.spd = 0; const mm = spawnMega(); mm.x = G.px + 320; mm.y = G.py - 60; mm.spd = 0; mm.disc = true; mm.bs.t = -999")
+    pg.wait_for_timeout(350); pg.screenshot(path=OUT + '75b-mega-limpieza-a.png'); pg.wait_for_timeout(1500); pg.screenshot(path=OUT + '75c-mega-limpieza-b.png')
     pg.evaluate(mega + "m.ad.agg = 0.8; m.hp = m.maxhp*0.6"); pg.wait_for_timeout(500); pg.screenshot(path=OUT + '76-mega-impaciente.png')
     pg.evaluate(mega + "m.ad.armor = 0.35; m.hp = m.maxhp*0.6"); pg.wait_for_timeout(500); pg.screenshot(path=OUT + '77-mega-armadura.png')
     fps = pg.evaluate("""() => new Promise(res => { G.enemies = []; for (let i = 0; i < 200; i++) { const et = ENEMY_TYPES[i % 6]; G.enemies.push({...et, x: G.px + (Math.random()-.5)*900, y: G.py + (Math.random()-.5)*600, hp: 1e6, maxhp: 1e6, kx: 0, ky: 0, flash: 0, orbT: 0, shootT: 9, ph: 0, hpBuf: 1, rBuf: 1, dcd: 9, ds: null, disc: true}); }
