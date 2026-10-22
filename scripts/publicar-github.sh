@@ -6,7 +6,7 @@
 # las pistas de música, dist/ y capturas/ no estén versionadas. Después verifica que el repositorio quedó privado.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-REPO="${REPO:-yeagob556/criaturas-survivor}"; DESC="Juego de supervivencia con criaturas originales en un solo HTML (proyecto de aprendizaje)"
+REPO="${REPO:-yeagoblab/criaturas-survivor}"; DESC="Juego de supervivencia con criaturas originales en un solo HTML (proyecto de aprendizaje)"
 APPLY=0; [ "${1:-}" = "--apply" ] && APPLY=1
 echo "== Comprobaciones"
 bash scripts/audit-secrets.sh

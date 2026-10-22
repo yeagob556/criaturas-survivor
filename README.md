@@ -119,7 +119,7 @@ Necesita ComfyUI arrancado en el PC (`creacion-local`). Cada pista se anota en e
 Hay tres entornos servidos por contenedores nginx de solo lectura en `dashboard-stack`: una **versión de prueba** (sin caché, accesible desde el panel de acceso), una **demo** tras el panel de acceso y una **versión pública** sin login. El flujo es probar primero (`scripts/sync-dashboard.sh --test --apply`) y, sólo cuando se aprueba, sincronizar la demo y la pública con `scripts/sync-dashboard.sh --apply` (ambas copian `index.html` y `music/`). El servidor debe permitir audio: el CSP lleva `media-src 'self'`. Detalles de despliegue en el repo `dashboard-stack`.
 
 ## GitHub
-El repositorio es **público** (`yeagob556/criaturas-survivor`) en modo «sólo lectura»: se puede ver el código y jugar, pero **no se puede reutilizar** (ver [`LICENSE`](LICENSE): todos los derechos reservados). Los commits usan el correo *noreply* de GitHub (no hay correos personales en el historial). El script que lo creó (primero como privado) hace antes la auditoría de secretos de todo el historial, comprueba que no haya cambios sin commit y verifica después la visibilidad:
+El repositorio es **público** (`yeagoblab/criaturas-survivor`) en modo «sólo lectura»: se puede ver el código y jugar, pero **no se puede reutilizar** (ver [`LICENSE`](LICENSE): todos los derechos reservados). Los commits usan el correo *noreply* de GitHub (no hay correos personales en el historial). El script que lo creó (primero como privado) hace antes la auditoría de secretos de todo el historial, comprueba que no haya cambios sin commit y verifica después la visibilidad:
 ```
 bash scripts/publicar-github.sh            # simula: muestra qué haría
 bash scripts/publicar-github.sh --apply    # crea el repo privado y sube

@@ -51,6 +51,6 @@ COMFY_HOST=<pc> bash scripts/generar_musica.sh --apply [tipo ...]   # regenera p
 - La fuente de verdad es este repo; la copia de `dashboard-stack/demos/criaturas-survivor/html/` se actualiza con `sync-dashboard.sh`. `music/*.mp3` no se sube a Git; cada pista se anota en `musica-ia-lofi/catalogo/canciones.csv`.
 
 ## Secretos (obligatorio)
-- **Repo público:** los commits se hacen con el correo noreply de GitHub (`git config user.email 279281179+yeagob556@users.noreply.github.com`, ya configurado en este repo); nunca el correo personal. `audit-secrets.sh` lo comprueba leyendo los patrones personales de `~/.config/audit-secrets-extra.txt` (fuera del repo: el correo nunca se escribe en un fichero versionado). Ningún documento debe contener IPs, puertos, hosts ocultos, correos ni tokens.
+- **Repo público:** los commits se hacen con el correo noreply de GitHub (`git config user.email 279281179+yeagoblab@users.noreply.github.com`, ya configurado en este repo); nunca el correo personal. `audit-secrets.sh` lo comprueba leyendo los patrones personales de `~/.config/audit-secrets-extra.txt` (fuera del repo: el correo nunca se escribe en un fichero versionado). Ningún documento debe contener IPs, puertos, hosts ocultos, correos ni tokens.
 - Prohibido escribir IPs, puertos, nombres de host ocultos, tokens o contraseñas en cualquier fichero del repo (`COMFY_HOST` va por entorno). El juego no usa red ni claves.
 - Antes de cada commit: `scripts/audit-secrets.sh` limpio. `git commit`/`push` solo por orden del usuario.
