@@ -2,6 +2,13 @@
 
 Versionado: `0.x.0` por cada mejora (la 0.1.0 es la primera versión); `0.x.y` para correcciones. La versión que muestra el juego (`VERSION` en `index.html`) debe coincidir con el primer encabezado de este fichero.
 
+## v0.14.0 — 2026-10-23 · El Titán escapa por un portal
+- **Inmune a control:** el Titán ya no se ve afectado por paralizar, inmovilizar, ralentizar ni encoger (antes la ralentización le llegaba reducida), ni por la ralentización de los líquidos, ni el ciclón lo arrastra. La quemadura y el daño directo siguen funcionando.
+- **Todos los jefes** (legendarios, invocados y Titán) son inmunes a paralizar, inmovilizar y ralentizar (antes la ralentización les duraba la mitad y les quitaba un 25 % de velocidad), también a la de los líquidos. Siguen sufriendo quemadura y daño directo.
+- **Escapa en vez de morir (solo la 1.ª visita):** a los 20 min sigue como estaba, pero cuando su vida llega a 0 se abre un portal (2,5 s, `MEGA.portal`), él y sus invocados se desvanecen sin botín y no cuenta como derrotado. Vuelve a los **40 min** (`MEGA.back`) con la vida completa (+50 % por ser su 2.ª visita) y despejando el campo como siempre; esa 2.ª vez ya muere de verdad (botín, estadística y ciclo normal de 20 min).
+- **Intervalo con más aparición:** mientras está fuera, los hostiles aparecen ×2 (`MEGA.fugaRate`) y el tope simultáneo sube ×1,4 (`fugaCap`, máx. 440); vuelven los legendarios normales y la marea de monstruos. El aumento termina cuando regresa.
+- `scripts/smoke.js`: inmunidades, huida (sin muerte, sin daño mientras huye, sin estadística), desaparición con sus invocados, aparición ×2, mareas de vuelta, regreso a los 40 min con +50 % de vida y muerte real en la 2.ª visita. Los tests antiguos de muerte marcan la huida como ya usada.
+
 ## v0.13.0 — 2026-10-22 · El Titán despeja el campo
 - **Al despertar Primordio, los hostiles normales se desvanecen** (se difuminan en 0,9 s, `MEGA.clear`; sin botín ni bajas, y sin atacar, moverse ni recibir daño mientras se apagan) y se borran sus disparos. **Se quedan** los legendarios que ya había (los de cada 4 minutos) y los que invoque el Titán; el combate pasa a ser contra jefes.
 - **Mientras el Titán vive no aparecen hostiles normales nuevos** (la aparición se detiene y su acumulador se vacía) y tampoco sale la «marea de monstruos» (si había una en curso, termina). Los otros eventos (lluvia de agua y de fuego) siguen. Al caer el Titán, la aparición normal vuelve.

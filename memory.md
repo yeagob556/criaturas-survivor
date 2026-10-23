@@ -14,6 +14,12 @@ Regla: al **finalizar cada tarea** se añade una entrada arriba (la más recient
 
 ## Entradas
 
+### 2026-10-23 — v0.14.0: el Titán escapa por un portal
+- **Qué cambió:** inmune a stuns/ralentizaciones/ciclón; a 0 de vida (1.ª visita) huye por un portal y vuelve a los 40 min con vida completa (+50 %) y el campo despejado; mientras tanto ×2 aparición (tope ×1,4); la 2.ª visita muere de verdad.
+- **Ficheros:** `index.html` (`MEGA`, `status`, `kill`, `megaEscape`, `spawn`, bucle de enemigos, tornado, dibujo del portal), `scripts/smoke.js`, `README.md`, `CHANGELOG.md`.
+- **Decisiones:** la huida reutiliza el desvanecimiento (`vanish`) para ser invulnerable e inapuntable; solo la 1.ª vez (`G.megaFled`) para que el jugador pueda acabar con él; sin botín ni estadística al huir; «con monstruos incluido» se interpretó como que regresa con su despeje de campo y sus invocados.
+- **Pendiente:** probar en la versión de prueba; sincronizar demo y pública y commitear solo cuando lo ordene.
+
 ### 2026-10-22 — v0.13.0: el Titán despeja el campo
 - **Qué cambió:** al despertar el Titán los hostiles normales se desvanecen (sin botín ni bajas) y no aparecen más ni la marea de monstruos mientras viva; quedan los legendarios y los invocados; al caer, vuelve la aparición.
 - **Ficheros:** `index.html` (`spawnMega`, `spawn`, `startEvent`, `update`, `hurt`, `nearest`, proyectiles, dibujo), `scripts/smoke.js`, `scripts/capturas.py`, `README.md`, `CHANGELOG.md`, `CLAUDE.md`
